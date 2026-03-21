@@ -6,13 +6,20 @@ export interface Rutina {
   nombre: string;
 }
 
-// Interfaz para CREAR una rutina
-export interface CrearRutinaDTO {
+export interface RutinaDia {
+  id: number;
+  rutina_id: number;
   nombre: string;
+  orden: number;
 }
 
-// Interfaz para EDITAR una rutina
-export interface EditarRutinaDTO {
+export interface RutinaDiaEjercicio {
   id: number;
-  nombre: string;
+  rutina_dia_id: number;
+  ejercicio_id: number;
+  series_objetivo: number;
+  reps_objetivo: string;
+  orden: number;
+  // Join fields
+  ejercicio_nombre?: string;
 }

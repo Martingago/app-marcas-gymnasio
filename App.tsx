@@ -1,47 +1,60 @@
+import './global.css';
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Platform, ActivityIndicator, View } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
 import { initDB } from './src/database';
+import { RootStackParamList } from './src/navigation/types';
+import HomeScreen from '@/navigation/HomeScreen';
+import RoutinesScreen from '@/navigation/RoutinesScreen';
+import ExercisesScreen from '@/navigation/ExercisesScreen';
+import HistoryScreen from '@/navigation/HistoryScreen';
+import ActiveWorkoutScreen from '@/navigation/ActiveWorkoutScreen';
+
+// Importación de pantallas
+
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
-  const[isDbReady, setIsDbReady] = useState<boolean>(false);
+  const [isDbReady, setIsDbReady] = useState(false);
 
   useEffect(() => {
-    // Esta función se ejecuta solo una vez cuando la app arranca
-    const setupDatabase = async () => {
-      initDB(); // Inicializamos las tablas
-      setIsDbReady(true); // Le decimos a React que ya podemos mostrar la app
+    const setup = async () => {
+      if (Platform.OS !== 'web') {
+        initDB();
+      }
+      setIsDbReady(true);
     };
-
-    setupDatabase();
+    setup();
   }, []);
 
   if (!isDbReady) {
-    // Mientras la base de datos se está preparando, mostramos un indicador de carga
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text>Cargando base de datos...</Text>
+      <View className="flex-1 justify-center items-center bg-slate-900">
+        <ActivityIndicator size="large" color="#3b82f6" />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>¡Bienvenido a tu App de Gym!</Text>
-      {/* Aquí irían los componentes principales de tu app */}
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator 
+        initialRouteName="Home"
+        screenOptions={{
+          headerStyle: { backgroundColor: '#0f172a' }, // slate-900
+          headerTintColor: '#fff',
+          headerTitleStyle: { fontWeight: 'bold' },
+          contentStyle: { backgroundColor: '#0f172a' }
+        }}
+      >
+        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Routines" component={RoutinesScreen} options={{ title: 'Mis Rutinas' }} />
+        <Stack.Screen name="Exercises" component={ExercisesScreen} options={{ title: 'Ejercicios' }} />
+        <Stack.Screen name="ActiveWorkout" component={ActiveWorkoutScreen} options={{ title: 'Entrenando' }} />
+        <Stack.Screen name="History" component={HistoryScreen} options={{ title: 'Evolución' }} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-});
