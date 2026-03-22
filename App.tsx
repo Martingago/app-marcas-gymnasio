@@ -23,7 +23,7 @@ export default function App() {
   useEffect(() => {
     const setup = async () => {
       if (Platform.OS !== 'web') {
-        initDB();
+        await initDB();
       }
       setIsDbReady(true);
     };
