@@ -1,33 +1,59 @@
-import db from "@/database";
-import { Categoria, CrearCategoriaDTO, EditarCategoriaDTO } from "@/interfaces/categoria";
+import { db } from "@/database";
+import { categorias } from "@/db/schema/categorias";
+import { eq, asc } from "drizzle-orm";
+import {
+  Categoria,
+  CrearCategoriaDTO,
+  EditarCategoriaDTO,
+} from "@/interfaces/categoria";
 
 /**
  * Obtiene la lista de categorías.
  */
-export const getCategorias = (): Categoria[] => {
-  return db.getAllSync<Categoria>('SELECT id, nombre FROM categorias ORDER BY nombre ASC');
+export const getCategorias = async (): Promise<Categoria[]> => {
+  // Select * from categorias order by nombre asc
+  return await db.select().from(categorias).orderBy(asc(categorias.nombre));
 };
 
 /**
  * Añade una nueva categoría.
  */
-export const addCategoria = (data: CrearCategoriaDTO): number => {
-  const result = db.runSync('INSERT INTO categorias (nombre) VALUES (?)', [data.nombre]);
-  return result.lastInsertRowId;
+export const addCategoria = async (
+  data: CrearCategoriaDTO,
+): Promise<Categoria> => {
+  // Insert y devuelve la fila insertada para obtener el ID
+  const result = await db
+    .insert(categorias)
+    .values({ nombre: data.nombre })
+    .returning({
+      id: categorias.id,
+      nombre: categorias.nombre,
+    }); // Devuelve el ID y nombre de la nueva categoría
+
+  return result[0];
 };
 
 /**
  * Actualiza el nombre de una categoría existente.
  */
-export const updateCategoria = (data: EditarCategoriaDTO): void => {
-  db.runSync('UPDATE categorias SET nombre = ? WHERE id = ?', [data.nombre, data.id]);
+export const updateCategoria = async (
+  data: EditarCategoriaDTO,
+): Promise<Categoria> => {
+  const result = await db 
+    .update(categorias)
+    .set({ nombre: data.nombre })
+    .where(eq(categorias.id, data.id))
+    .returning({
+      id: categorias.id,
+      nombre: categorias.nombre,
+    });
+
+  return result[0];
 };
 
 /**
  * Elimina una categoría por su ID.
- * (Nota: En database.ts le pusimos ON DELETE SET NULL, 
- * por lo que los ejercicios de esta categoría no se borrarán, solo quedarán sin categoría).
  */
-export const deleteCategoria = (id: number): void => {
-  db.runSync('DELETE FROM categorias WHERE id = ?', [id]);
+export const deleteCategoria = async (id: number): Promise<void> => {
+  await db.delete(categorias).where(eq(categorias.id, id));
 };

@@ -1,3 +1,5 @@
+// src\db\schema\categorias.ts
+
 import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
 
 export const categorias = sqliteTable("categorias", {

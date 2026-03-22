@@ -1,3 +1,5 @@
+// src\db\schema\ejercicios.ts
+
 import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
 import { categorias } from "./categorias";
 

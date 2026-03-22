@@ -1,57 +1,94 @@
-// src\services\ejercicios\ejerciciosService.ts
-import db from '@/database';
-import { CrearEjercicioDTO, EditarEjercicioDTO, Ejercicio } from '@/interfaces/ejercicio';
+import { db } from "@/database";
+import { ejercicios } from "@/db/schema/ejercicios";
+import { categorias } from "@/db/schema/categorias";
+import { eq, asc } from "drizzle-orm";
+import { CrearEjercicioDTO, EditarEjercicioDTO, Ejercicio } from "@/interfaces/ejercicio";
 
 /**
- * Obtiene todos los ejercicios.
- * @param categoria_id (Opcional) Si se envía, filtra los ejercicios por esa categoría.
+ * Obtiene todos los ejercicios (Opcionalmente filtrados por categoría).
  */
-export const getEjercicios = (categoria_id?: number | null): Ejercicio[] => {
-  let query = `
-    SELECT e.id, e.nombre, e.categoria_id, c.nombre as categoria_nombre 
-    FROM ejercicios e
-    LEFT JOIN categorias c ON e.categoria_id = c.id
-  `;
-  
-  let params: any[] =[];
+export const getEjercicios = async (categoria_id?: number | null): Promise<Ejercicio[]> => {
+  let query = db
+    .select({
+      id: ejercicios.id,
+      nombre: ejercicios.nombre,
+      categoria_id: ejercicios.categoriaId,
+      categoria_nombre: categorias.nombre,
+    })
+    .from(ejercicios)
+    .leftJoin(categorias, eq(ejercicios.categoriaId, categorias.id))
+    .$dynamic(); 
 
-  // Si nos pasan un filtro de categoría, añadimos el WHERE
   if (categoria_id) {
-    query += ` WHERE e.categoria_id = ?`;
-    params.push(categoria_id);
+    query = query.where(eq(ejercicios.categoriaId, categoria_id));
   }
 
-  query += ` ORDER BY e.nombre ASC`;
-
-  // Le pasamos la interfaz <Ejercicio> para que TypeScript sepa qué devuelve
-  return db.getAllSync<Ejercicio>(query, params);
+  return await query.orderBy(asc(ejercicios.nombre));
 };
 
 /**
- * Añade un nuevo ejercicio a la base de datos.
+ * Añade un nuevo ejercicio y devuelve la entidad completa (con el nombre de la categoría).
  */
-export const addEjercicio = (data: CrearEjercicioDTO): number => {
-  // runSync es ideal para INSERT, UPDATE o DELETE. Devuelve el ID insertado.
-  const result = db.runSync(
-    'INSERT INTO ejercicios (nombre, categoria_id) VALUES (?, ?)',[data.nombre, data.categoria_id]
-  );
-  return result.lastInsertRowId;
+export const addEjercicio = async (data: CrearEjercicioDTO): Promise<Ejercicio> => {
+  // 1. Insertamos y obtenemos el nuevo ID
+  const insertResult = await db
+    .insert(ejercicios)
+    .values({
+      nombre: data.nombre,
+      categoriaId: data.categoria_id,
+    })
+    .returning({ id: ejercicios.id });
+
+  const nuevoId = insertResult[0].id;
+
+  // 2. Buscamos el ejercicio recién creado con su JOIN para tener la entidad completa
+  const resultCompleto = await db
+    .select({
+      id: ejercicios.id,
+      nombre: ejercicios.nombre,
+      categoria_id: ejercicios.categoriaId,
+      categoria_nombre: categorias.nombre,
+    })
+    .from(ejercicios)
+    .leftJoin(categorias, eq(ejercicios.categoriaId, categorias.id))
+    .where(eq(ejercicios.id, nuevoId));
+
+  return resultCompleto[0];
 };
 
 /**
- * Actualiza un ejercicio existente.
+ * Actualiza un ejercicio existente y devuelve la entidad completa actualizada.
  */
-export const updateEjercicio = (data: EditarEjercicioDTO): void => {
-  db.runSync(
-    'UPDATE ejercicios SET nombre = ?, categoria_id = ? WHERE id = ?',
-    [data.nombre, data.categoria_id, data.id]
-  );
+export const updateEjercicio = async (data: EditarEjercicioDTO): Promise<Ejercicio> => {
+  // 1. Actualizamos
+  await db
+    .update(ejercicios)
+    .set({
+      nombre: data.nombre,
+      categoriaId: data.categoria_id,
+    })
+    .where(eq(ejercicios.id, data.id));
+
+  // 2. Recuperamos el ejercicio actualizado con el nombre de su categoría
+  const resultCompleto = await db
+    .select({
+      id: ejercicios.id,
+      nombre: ejercicios.nombre,
+      categoria_id: ejercicios.categoriaId,
+      categoria_nombre: categorias.nombre,
+    })
+    .from(ejercicios)
+    .leftJoin(categorias, eq(ejercicios.categoriaId, categorias.id))
+    .where(eq(ejercicios.id, data.id));
+
+  return resultCompleto[0];
 };
 
 /**
  * Elimina un ejercicio por su ID.
  */
-export const deleteEjercicio = (id: number): void => {
-  db.runSync('DELETE FROM ejercicios WHERE id = ?', [id]);
+export const deleteEjercicio = async (id: number): Promise<void> => {
+  await db
+    .delete(ejercicios)
+    .where(eq(ejercicios.id, id));
 };
-

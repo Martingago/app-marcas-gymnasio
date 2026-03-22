@@ -3,15 +3,16 @@ import { drizzle } from "drizzle-orm/expo-sqlite";
 import { migrate } from "drizzle-orm/expo-sqlite/migrator";
 import migrations from "../drizzle/migrations"; // Se genera automáticamente
 import * as schema from "./db/schema";
+import { seedDatabase } from "./db/seed";
 
-// 1. Conexión nativa
+// Conexión nativa
 const expoDb = SQLite.openDatabaseSync("gymData.db");
-
-// 2. Instancia de Drizzle
+// Instancia de Drizzle
 export const db = drizzle(expoDb, { schema });
 
+
 /**
- * Función de inicialización robusta
+ * Función de inicialización 
  */
 export const initDB = async () => {
 
@@ -20,6 +21,9 @@ export const initDB = async () => {
     await migrate(db, migrations);
     
     console.log("✅ Tablas sincronizadas con éxito (Drizzle Migrations)");
+
+    // Llena la base de datos con información por defecto si está vacía
+    await seedDatabase();
 
     // Opcional: Insertar categorías por defecto si la tabla está vacía
     // Veremos cómo hacer esto con Drizzle en el siguiente paso de los Services

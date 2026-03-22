@@ -1,37 +1,81 @@
-import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { useCategorias } from '@/hooks/useCategorias';
+import { useEjercicios } from '@/hooks/useEjercicios';
+import ExerciseList from '@/components/ejercicios/ExerciseList';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Exercises'>;
+export default function ExercisesScreen() {
+  // Estado local para saber qué categoría está seleccionada (null = Todas)
+  const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null);
 
-export default function ExercisesScreen({ navigation }: Props) {
+  // Custom Hooks
+  const { categorias } = useCategorias();
+  const { ejercicios, loading } = useEjercicios(categoriaActiva);
+
   return (
-    <View className="flex-1 bg-slate-900 p-6 justify-center">
-      <Text className="text-white text-4xl font-bold mb-8 text-center">Mi Gym App</Text>
+    <View className="flex-1 bg-slate-900 p-4">
       
-      <View className="space-y-4">
-        <TouchableOpacity 
-          className="bg-blue-600 p-6 rounded-2xl shadow-lg"
-          onPress={() => navigation.navigate('Routines')}
+      {/* HEADER: Filtros y Botón Añadir */}
+      <View className="flex-row items-center mb-6">
+        
+        {/* Scroll Horizontal de Categorías (El "Select" de móvil) */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          className="flex-1 mr-4"
         >
-          <Text className="text-white text-xl font-semibold text-center">🚀 Empezar Entreno</Text>
-        </TouchableOpacity>
+          {/* Opción "Todas" */}
+          <TouchableOpacity 
+            className={`px-4 py-2 rounded-full mr-2 ${categoriaActiva === null ? 'bg-blue-600' : 'bg-slate-800 border border-slate-700'}`}
+            onPress={() => setCategoriaActiva(null)}
+          >
+            <Text className={categoriaActiva === null ? 'text-white font-bold' : 'text-slate-300'}>
+              Todas
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity 
-          className="bg-slate-800 p-5 rounded-2xl border border-slate-700"
-          onPress={() => navigation.navigate('Exercises')}
-        >
-          <Text className="text-slate-300 text-lg text-center">📚 Mis Ejercicios</Text>
-        </TouchableOpacity>
+          {/* Opciones dinámicas de la base de datos */}
+          {categorias.map((cat) => (
+            <TouchableOpacity 
+              key={cat.id}
+              className={`px-4 py-2 rounded-full mr-2 ${categoriaActiva === cat.id ? 'bg-blue-600' : 'bg-slate-800 border border-slate-700'}`}
+              onPress={() => setCategoriaActiva(cat.id)}
+            >
+              <Text className={categoriaActiva === cat.id ? 'text-white font-bold' : 'text-slate-300'}>
+                {cat.nombre}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
+        {/* BOTÓN AÑADIR */}
         <TouchableOpacity 
-          className="bg-slate-800 p-5 rounded-2xl border border-slate-700"
-          onPress={() => navigation.navigate('History')}
+          className="bg-emerald-600 w-10 h-10 rounded-full justify-center items-center shadow-lg"
+          onPress={() => console.log("Abrir modal para crear ejercicio")}
         >
-          <Text className="text-slate-300 text-lg text-center">📈 Historial y Evolución</Text>
+          <Text className="text-white text-2xl font-bold leading-none mt-[-2px]">+</Text>
         </TouchableOpacity>
       </View>
+
+      {/* TÍTULO DE SECCIÓN */}
+      <Text className="text-white text-2xl font-bold mb-4">
+        {categoriaActiva === null 
+          ? 'Todos los ejercicios' 
+          : `Ejercicios de ${categorias.find(c => c.id === categoriaActiva)?.nombre}`}
+      </Text>
+
+      {/* LISTA (NUESTRO COMPONENTE REUTILIZABLE) */}
+      {loading ? (
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#3b82f6" />
+        </View>
+      ) : (
+        <ExerciseList 
+          ejercicios={ejercicios} 
+          onExercisePress={(ej) => console.log("Clic en ejercicio:", ej.nombre)}
+        />
+      )}
+
     </View>
   );
 }
