@@ -3,78 +3,126 @@ import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'rea
 import { useCategorias } from '@/hooks/useCategorias';
 import { useEjercicios } from '@/hooks/useEjercicios';
 import ExerciseList from '@/components/ejercicios/ExerciseList';
+import { Ejercicio } from '@/interfaces/ejercicio';
+
+// Importamos los modales
+import { OptionsModal, DeleteModal, FormModal } from '@/components/modals/ExerciseModals';
 
 export default function ExercisesScreen() {
-  // Estado local para saber qué categoría está seleccionada (null = Todas)
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null);
+  
+  // Estados para controlar Modales
+  const [ejercicioSeleccionado, setEjercicioSeleccionado] = useState<Ejercicio | null>(null);
+  const [isOptionsVisible, setOptionsVisible] = useState(false);
+  const[isDeleteVisible, setDeleteVisible] = useState(false);
+  const[isFormVisible, setFormVisible] = useState(false);
 
-  // Custom Hooks
   const { categorias } = useCategorias();
-  const { ejercicios, loading } = useEjercicios(categoriaActiva);
+  const { ejercicios, loading, agregar, editar, eliminar } = useEjercicios(categoriaActiva);
+
+  // --- LÓGICA DE MANEJO DE EVENTOS ---
+  const handleOpenOptions = (ejercicio: Ejercicio) => {
+    setEjercicioSeleccionado(ejercicio);
+    setOptionsVisible(true);
+  };
+
+  const handleCreateNew = () => {
+    setEjercicioSeleccionado(null); // Null significa modo "Crear"
+    setFormVisible(true);
+  };
+
+  const handleSaveForm = async (data: any) => {
+    if (ejercicioSeleccionado) {
+      await editar(data); // Modo Editar
+    } else {
+      await agregar(data); // Modo Añadir
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (ejercicioSeleccionado) {
+      await eliminar(ejercicioSeleccionado.id);
+      setDeleteVisible(false);
+    }
+  };
 
   return (
     <View className="flex-1 bg-slate-900 p-4">
-      
-      {/* HEADER: Filtros y Botón Añadir */}
-      <View className="flex-row items-center mb-6">
-        
-        {/* Scroll Horizontal de Categorías (El "Select" de móvil) */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          className="flex-1 mr-4"
-        >
-          {/* Opción "Todas" */}
+      {/* ... (Todo tu HEADER con el ScrollView de chips se queda igual) ... */}
+      <View className="flex-row items-center mb-6 mt-4">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-1 mr-4">
           <TouchableOpacity 
             className={`px-4 py-2 rounded-full mr-2 ${categoriaActiva === null ? 'bg-blue-600' : 'bg-slate-800 border border-slate-700'}`}
             onPress={() => setCategoriaActiva(null)}
           >
-            <Text className={categoriaActiva === null ? 'text-white font-bold' : 'text-slate-300'}>
-              Todas
-            </Text>
+            <Text className={categoriaActiva === null ? 'text-white font-bold' : 'text-slate-300'}>Todas</Text>
           </TouchableOpacity>
 
-          {/* Opciones dinámicas de la base de datos */}
           {categorias.map((cat) => (
             <TouchableOpacity 
               key={cat.id}
               className={`px-4 py-2 rounded-full mr-2 ${categoriaActiva === cat.id ? 'bg-blue-600' : 'bg-slate-800 border border-slate-700'}`}
               onPress={() => setCategoriaActiva(cat.id)}
             >
-              <Text className={categoriaActiva === cat.id ? 'text-white font-bold' : 'text-slate-300'}>
-                {cat.nombre}
-              </Text>
+              <Text className={categoriaActiva === cat.id ? 'text-white font-bold' : 'text-slate-300'}>{cat.nombre}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
-        {/* BOTÓN AÑADIR */}
         <TouchableOpacity 
-          className="bg-emerald-600 w-10 h-10 rounded-full justify-center items-center shadow-lg"
-          onPress={() => console.log("Abrir modal para crear ejercicio")}
+          className="bg-emerald-600 w-12 h-12 rounded-full justify-center items-center shadow-lg"
+          onPress={handleCreateNew}
         >
-          <Text className="text-white text-2xl font-bold leading-none mt-[-2px]">+</Text>
+          <Text className="text-white text-3xl font-bold leading-none mt-[-4px]">+</Text>
         </TouchableOpacity>
       </View>
 
-      {/* TÍTULO DE SECCIÓN */}
       <Text className="text-white text-2xl font-bold mb-4">
-        {categoriaActiva === null 
-          ? 'Todos los ejercicios' 
-          : `Ejercicios de ${categorias.find(c => c.id === categoriaActiva)?.nombre}`}
+        {categoriaActiva === null ? 'Todos los ejercicios' : `Ejercicios de ${categorias.find(c => c.id === categoriaActiva)?.nombre}`}
       </Text>
 
-      {/* LISTA (NUESTRO COMPONENTE REUTILIZABLE) */}
       {loading ? (
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color="#3b82f6" />
-        </View>
+        <ActivityIndicator size="large" color="#3b82f6" className="mt-10" />
       ) : (
         <ExerciseList 
           ejercicios={ejercicios} 
-          onExercisePress={(ej) => console.log("Clic en ejercicio:", ej.nombre)}
+          onExercisePress={(ej) => console.log("Navegar a detalles:", ej.nombre)}
+          onOptionsPress={handleOpenOptions} // Recibimos el clic de los 3 puntitos
         />
       )}
+
+      {/* --- RENDERIZADO DE MODALES --- */}
+      
+      {/* Modal de Toast de Opciones */}
+      <OptionsModal 
+        visible={isOptionsVisible} 
+        onClose={() => setOptionsVisible(false)}
+        onEdit={() => {
+          setOptionsVisible(false);
+          setFormVisible(true); // Abre el formulario con el ejercicioSeleccionado
+        }}
+        onDelete={() => {
+          setOptionsVisible(false);
+          setDeleteVisible(true); // Abre confirmación de borrado
+        }}
+      />
+
+      {/* Modal Confirmar Borrar */}
+      <DeleteModal 
+        visible={isDeleteVisible}
+        ejercicio={ejercicioSeleccionado}
+        onClose={() => setDeleteVisible(false)}
+        onConfirm={handleConfirmDelete}
+      />
+
+      {/* Modal Formulario Añadir/Editar */}
+      <FormModal 
+        visible={isFormVisible}
+        categorias={categorias}
+        ejercicioAEditar={ejercicioSeleccionado}
+        onClose={() => setFormVisible(false)}
+        onSave={handleSaveForm}
+      />
 
     </View>
   );
