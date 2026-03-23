@@ -1,78 +1,68 @@
 // src\services\rutina\rutinasService.ts
 
-import db from "@/database";
-import { Rutina, CrearRutinaDTO, EditarRutinaDTO } from "@/interfaces/rutina";
-import { Ejercicio } from "@/interfaces/ejercicio";
+import { db } from "@/database";
+import { rutinas } from "@/db/schema/rutinas";
+import { rutinaDias } from "@/db/schema/rutina_dias";
+import { rutinaDiaEjercicios } from "@/db/schema/rutina_dia_ejercicios";
+import { eq, count, sql } from "drizzle-orm";
+import { FormRutina } from "@/interfaces/rutina";
 
-/**
- * Obtiene todas las rutinas creadas.
- */
-export const getRutinas = (): Rutina[] => {
-  return db.getAllSync<Rutina>('SELECT id, nombre FROM rutinas ORDER BY nombre ASC');
+// Guardar rutina completa en transacción
+export const guardarRutinaCompleta = async (formData: FormRutina) => {
+  await db.transaction(async (tx) => {
+    // 1. Crear Rutina
+    const [nuevaRutina] = await tx.insert(rutinas).values({ nombre: formData.nombre }).returning({ id: rutinas.id });
+
+    // 2. Crear Días y Ejercicios
+    for (let i = 0; i < formData.dias.length; i++) {
+      const dia = formData.dias[i];
+      const [nuevoDia] = await tx.insert(rutinaDias).values({
+        rutinaId: nuevaRutina.id,
+        nombre: dia.nombre,
+        orden: i + 1,
+      }).returning({ id: rutinaDias.id });
+
+      // 3. Crear los ejercicios de ese día
+      for (let j = 0; j < dia.ejercicios.length; j++) {
+        const ej = dia.ejercicios[j];
+        if (ej.ejercicio_id) {
+          await tx.insert(rutinaDiaEjercicios).values({
+            rutinaDiaId: nuevoDia.id,
+            ejercicioId: ej.ejercicio_id,
+            seriesObjetivo: parseInt(ej.series_objetivo),
+            repsObjetivo: ej.reps_objetivo,
+            orden: j + 1
+          });
+        }
+      }
+    }
+  });
 };
 
-/**
- * Crea una nueva rutina vacía.
- */
-export const addRutina = (data: CrearRutinaDTO): number => {
-  const result = db.runSync('INSERT INTO rutinas (nombre) VALUES (?)', [data.nombre]);
-  return result.lastInsertRowId;
+// Obtener todas las rutinas con su conteo de días
+export const getRutinasConDetalle = async () => {
+  return await db
+    .select({
+      id: rutinas.id,
+      nombre: rutinas.nombre,
+      totalDias: sql<number>`(SELECT COUNT(*) FROM ${rutinaDias} WHERE ${rutinaDias.rutinaId} = ${rutinas.id})`
+    })
+    .from(rutinas);
 };
 
-/**
- * Actualiza el nombre de una rutina.
- */
-export const updateRutina = (data: EditarRutinaDTO): void => {
-  db.runSync('UPDATE rutinas SET nombre = ? WHERE id = ?', [data.nombre, data.id]);
-};
-
-/**
- * Elimina una rutina por su ID.
- * (Al tener ON DELETE CASCADE en database.ts, borrará automáticamente 
- * la relación con los ejercicios y los entrenamientos asociados).
- */
-export const deleteRutina = (id: number): void => {
-  db.runSync('DELETE FROM rutinas WHERE id = ?', [id]);
-};
-
-/**
- * Obtiene todos los ejercicios asignados a una rutina específica.
- */
-export const getEjerciciosPorRutina = (rutina_id: number): Ejercicio[] => {
-  const query = `
-    SELECT e.id, e.nombre, e.categoria_id, c.nombre as categoria_nombre 
-    FROM ejercicios e
-    INNER JOIN rutina_ejercicios re ON e.id = re.ejercicio_id
-    LEFT JOIN categorias c ON e.categoria_id = c.id
-    WHERE re.rutina_id = ?
-    ORDER BY e.nombre ASC
-  `;
-  return db.getAllSync<Ejercicio>(query, [rutina_id]);
-};
-
-/**
- * Asigna un ejercicio existente a una rutina.
- */
-export const addEjercicioARutina = (rutina_id: number, ejercicio_id: number): void => {
-  // Primero verificamos que no esté ya añadido para evitar duplicados en la misma rutina
-  const existe = db.getFirstSync(
-    'SELECT id FROM rutina_ejercicios WHERE rutina_id = ? AND ejercicio_id = ?',
-    [rutina_id, ejercicio_id]
-  );
-
-  if (!existe) {
-    db.runSync(
-      'INSERT INTO rutina_ejercicios (rutina_id, ejercicio_id) VALUES (?, ?)',[rutina_id, ejercicio_id]
-    );
-  }
-};
-
-/**
- * Quita un ejercicio de una rutina.
- */
-export const removeEjercicioDeRutina = (rutina_id: number, ejercicio_id: number): void => {
-  db.runSync(
-    'DELETE FROM rutina_ejercicios WHERE rutina_id = ? AND ejercicio_id = ?',
-    [rutina_id, ejercicio_id]
-  );
+// Obtener los días y ejercicios de una rutina especifica (para el desplegable)
+export const getRutinaCompleta = async (rutinaId: number) => {
+  return await db
+    .select({
+      diaId: rutinaDias.id,
+      diaNombre: rutinaDias.nombre,
+      ejercicioNombre: sql<string>`e.nombre`,
+      seriesObjetivo: rutinaDiaEjercicios.seriesObjetivo,
+      repsObjetivo: rutinaDiaEjercicios.repsObjetivo,
+    })
+    .from(rutinaDias)
+    .innerJoin(rutinaDiaEjercicios, eq(rutinaDias.id, rutinaDiaEjercicios.rutinaDiaId))
+    .innerJoin(sql`ejercicios e`, eq(rutinaDiaEjercicios.ejercicioId, sql`e.id`))
+    .where(eq(rutinaDias.rutinaId, rutinaId))
+    .orderBy(rutinaDias.orden, rutinaDiaEjercicios.orden);
 };

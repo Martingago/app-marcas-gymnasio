@@ -1,13 +1,16 @@
 import { db } from "@/database";
 import { ejercicios } from "@/db/schema/ejercicios";
 import { categorias } from "@/db/schema/categorias";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and, like } from "drizzle-orm";
 import { CrearEjercicioDTO, EditarEjercicioDTO, Ejercicio } from "@/interfaces/ejercicio";
 
 /**
  * Obtiene todos los ejercicios (Opcionalmente filtrados por categoría).
  */
-export const getEjercicios = async (categoria_id?: number | null): Promise<Ejercicio[]> => {
+export const getEjercicios = async (
+  categoria_id?: number | null,
+  searchQuery?: string
+): Promise<Ejercicio[]> => {
   let query = db
     .select({
       id: ejercicios.id,
@@ -17,10 +20,23 @@ export const getEjercicios = async (categoria_id?: number | null): Promise<Ejerc
     })
     .from(ejercicios)
     .leftJoin(categorias, eq(ejercicios.categoriaId, categorias.id))
-    .$dynamic(); 
+    .$dynamic();
+
+  // Array para guardar los filtros que se vayan aplicando
+  const filtros =[];
 
   if (categoria_id) {
-    query = query.where(eq(ejercicios.categoriaId, categoria_id));
+    filtros.push(eq(ejercicios.categoriaId, categoria_id));
+  }
+  
+  if (searchQuery && searchQuery.trim() !== '') {
+    // Busca coincidencias en cualquier parte del nombre
+    filtros.push(like(ejercicios.nombre, `%${searchQuery.trim()}%`));
+  }
+
+  // Si hay filtros, los combinamos con AND
+  if (filtros.length > 0) {
+    query = query.where(and(...filtros));
   }
 
   return await query.orderBy(asc(ejercicios.nombre));

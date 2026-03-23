@@ -23,3 +23,22 @@ export interface RutinaDiaEjercicio {
   // Join fields
   ejercicio_nombre?: string;
 }
+
+export interface FormRutinaDiaEjercicio {
+  id_temp: string;
+  ejercicio_id: number | null;
+  ejercicio_nombre?: string;
+  series_objetivo: string; // Lo usamos como string para el TextInput
+  reps_objetivo: string;
+}
+
+export interface FormRutinaDia {
+  id_temp: string;
+  nombre: string; // Ej: "Día 1: Pecho"
+  ejercicios: FormRutinaDiaEjercicio[];
+}
+
+export interface FormRutina {
+  nombre: string;
+  dias: FormRutinaDia[];
+}

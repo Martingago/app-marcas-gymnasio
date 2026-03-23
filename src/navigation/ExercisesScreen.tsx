@@ -7,6 +7,7 @@ import { Ejercicio } from '@/interfaces/ejercicio';
 
 // Importamos los modales
 import { OptionsModal, DeleteModal, FormModal } from '@/components/modals/ExerciseModals';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ExercisesScreen() {
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null);
@@ -47,8 +48,7 @@ export default function ExercisesScreen() {
   };
 
   return (
-    <View className="flex-1 bg-slate-900 p-4">
-      {/* ... (Todo tu HEADER con el ScrollView de chips se queda igual) ... */}
+    <SafeAreaView className="flex-1 bg-slate-900 p-4">
       <View className="flex-row items-center mb-6 mt-4">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-1 mr-4">
           <TouchableOpacity 
@@ -124,6 +124,6 @@ export default function ExercisesScreen() {
         onSave={handleSaveForm}
       />
 
-    </View>
+    </SafeAreaView>
   );
 }

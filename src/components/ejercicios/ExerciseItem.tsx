@@ -23,16 +23,18 @@ export default function ExerciseItem({ ejercicio, onPress, onOptionsPress }: Pro
         </Text>
       </View>
       
+            {/* Icono de navegación indicativa */}
+      <Ionicons name="chevron-forward" size={20} color="#64748b" />
+
       {/* Botón de 3 puntitos (Ajustes) */}
       <TouchableOpacity 
-        className="p-2 mr-2"
+        className="p-2"
         onPress={() => onOptionsPress && onOptionsPress(ejercicio)}
       >
         <Ionicons name="ellipsis-vertical" size={20} color="#94a3b8" />
       </TouchableOpacity>
 
-      {/* Icono de navegación indicativa */}
-      <Ionicons name="chevron-forward" size={20} color="#64748b" />
+
     </TouchableOpacity>
   );
 }

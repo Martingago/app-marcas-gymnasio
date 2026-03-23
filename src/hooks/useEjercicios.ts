@@ -2,20 +2,20 @@ import { useState, useEffect } from 'react';
 import { Ejercicio, CrearEjercicioDTO, EditarEjercicioDTO } from '@/interfaces/ejercicio';
 import { getEjercicios, addEjercicio, updateEjercicio, deleteEjercicio } from '@/services/ejercicios/ejerciciosService';
 
-export const useEjercicios = (categoriaIdFiltro: number | null) => {
+export const useEjercicios = (categoriaIdFiltro: number | null, searchQuery: string ="") => {
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
   const[loading, setLoading] = useState<boolean>(true);
 
   const cargarEjercicios = async () => {
     setLoading(true);
-    const data = await getEjercicios(categoriaIdFiltro);
+    const data = await getEjercicios(categoriaIdFiltro, searchQuery);
     setEjercicios(data);
     setLoading(false);
   };
 
-  useEffect(() => {
+   useEffect(() => {
     cargarEjercicios();
-  }, [categoriaIdFiltro]);
+  }, [categoriaIdFiltro, searchQuery]);
 
   // NUEVAS FUNCIONES PARA EL CRUD
   const agregar = async (data: CrearEjercicioDTO) => {
