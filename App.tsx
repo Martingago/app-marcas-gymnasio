@@ -11,7 +11,7 @@ import RoutinesScreen from "@/navigation/RoutinesScreen";
 import ExercisesScreen from "@/navigation/ExercisesScreen";
 import HistoryScreen from "@/navigation/HistoryScreen";
 import ActiveWorkoutScreen from "@/navigation/ActiveWorkoutScreen";
-import CreateRoutineScreen from "@/navigation/CreateRoutineScreen";
+import CreateRoutineScreen from "@/screens/CreateRoutineScreen";
 
 // Importación de pantallas
 

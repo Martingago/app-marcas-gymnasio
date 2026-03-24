@@ -1,5 +1,6 @@
 import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
-import { rutinaDias } from "./rutina_dias";
+import { rutinaDias } from "@/db/schema/rutina/rutinaDias";
+
 
 export const entrenamientos = sqliteTable("entrenamientos", {
   id: integer("id").primaryKey({ autoIncrement: true }),

@@ -6,19 +6,30 @@ import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '@/navigation/types';
 import { getRutinaCompleta, getRutinasConDetalle } from '@/services/rutina/rutinasService';
 
-// Importamos los servicios reales que creaste
-
 type Props = NativeStackScreenProps<RootStackParamList, 'Routines'>;
+
+// 1. DEFINIMOS LOS TIPOS PARA EL AGRUPAMIENTO Y QUITAR EL ERROR DE 'UNKNOWN'
+interface SerieDetalle {
+  orden: number;
+  reps: string;
+  peso: string;
+}
+
+interface EjerciciosAgrupados {
+  [ejercicioNombre: string]: SerieDetalle[];
+}
+
+interface DiasAgrupados {[diaNombre: string]: EjerciciosAgrupados;
+}
 
 export default function RoutinesScreen({ navigation }: Props) {
   const [rutinas, setRutinas] = useState<any[]>([]); 
   const [loading, setLoading] = useState(true);
 
   // Estados para el acordeón
-  const [expandedIds, setExpandedIds] = useState<number[]>([]);
+  const[expandedIds, setExpandedIds] = useState<number[]>([]);
   const[detalleRutina, setDetalleRutina] = useState<any[]>([]);
 
-  // useFocusEffect recarga la lista automáticamente cada vez que entras a esta pantalla
   useFocusEffect(
     useCallback(() => {
       const cargarRutinas = async () => {
@@ -36,44 +47,50 @@ export default function RoutinesScreen({ navigation }: Props) {
     },[])
   );
 
-  // Lógica del Acordeón
   const toggleExpand = async (rutinaId: number) => {
     if (expandedIds.includes(rutinaId)) {
-      // Si está abierto, lo cerramos
       setExpandedIds(expandedIds.filter(id => id !== rutinaId));
     } else {
-      // Si está cerrado, descargamos sus datos y lo abrimos
       const detalles = await getRutinaCompleta(rutinaId);
-      
-      // Añadimos la propiedad rutinaId a cada detalle para saber a quién pertenece
       const detallesConId = detalles.map((d: any) => ({ ...d, rutinaId }));
       
       setDetalleRutina(prev =>[
-        ...prev.filter(d => d.rutinaId !== rutinaId), // Limpiamos info vieja si la hubiera
+        ...prev.filter(d => d.rutinaId !== rutinaId),
         ...detallesConId
       ]);
       setExpandedIds([...expandedIds, rutinaId]);
     }
   };
 
-  // Renderizado de cada tarjeta de Rutina
   const renderRutina = ({ item }: { item: any }) => {
     const isExpanded = expandedIds.includes(item.id);
-    
-    // Filtramos los detalles que pertenecen solo a esta rutina
     const detallesDeEstaRutina = detalleRutina.filter(d => d.rutinaId === item.id);
 
-    // Agrupamos los ejercicios por Día para que no salga "Día 1" repetido por cada ejercicio
-    const ejerciciosPorDia = detallesDeEstaRutina.reduce((acc, curr) => {
-      if (!acc[curr.diaNombre]) acc[curr.diaNombre] =[];
-      acc[curr.diaNombre].push(curr);
+    // 2. AGRUPAMOS POR DÍA -> EJERCICIO -> SERIES
+    const diasAgrupados = detallesDeEstaRutina.reduce<DiasAgrupados>((acc, curr) => {
+      // Si el día no existe, lo creamos
+      if (!acc[curr.diaNombre]) {
+        acc[curr.diaNombre] = {};
+      }
+      // Si el ejercicio no existe dentro del día, lo creamos
+      if (!acc[curr.diaNombre][curr.ejercicioNombre]) {
+        acc[curr.diaNombre][curr.ejercicioNombre] =[];
+      }
+      // Si hay datos de la serie, los insertamos
+      if (curr.serieOrden) {
+        acc[curr.diaNombre][curr.ejercicioNombre].push({
+          orden: curr.serieOrden,
+          reps: curr.repsObjetivo || '-',
+          peso: curr.pesoObjetivo || '0'
+        });
+      }
       return acc;
-    }, {} as Record<string, any[]>);
+    }, {});
 
     return (
       <View className="bg-slate-800 rounded-2xl mb-4 border border-slate-700 overflow-hidden">
         
-        {/* ZONA CLICKEABLE PARA EXPANDIR (El Acordeón) */}
+        {/* ZONA EXPANDIR (Acordeón) */}
         <TouchableOpacity 
           className="p-5 flex-row justify-between items-center"
           onPress={() => toggleExpand(item.id)}
@@ -86,27 +103,42 @@ export default function RoutinesScreen({ navigation }: Props) {
           <Text className="text-slate-500 text-2xl mr-4">{isExpanded ? '▲' : '▼'}</Text>
         </TouchableOpacity>
 
-        {/* CONTENIDO DESPLEGABLE (Los detalles) */}
+        {/* CONTENIDO DESPLEGABLE */}
         {isExpanded && (
           <View className="px-5 pb-5 border-t border-slate-700 pt-3 bg-slate-800/80">
-            {Object.entries(ejerciciosPorDia).map(([diaNombre, ejercicios]) => (
-              <View key={diaNombre} className="mb-4">
-                <Text className="text-emerald-400 font-bold text-lg mb-2">{diaNombre}</Text>
+            {/* Iteramos sobre los Días */}
+            {Object.entries(diasAgrupados).map(([diaNombre, ejercicios]) => (
+              <View key={diaNombre} className="mb-6">
+                <Text className="text-emerald-400 font-bold text-lg mb-3 border-b border-slate-700 pb-1">
+                  {diaNombre}
+                </Text>
                 
-                {ejercicios.map((ej, index) => (
-                  <View key={index} className="flex-row justify-between mb-1 ml-2">
-                    <Text className="text-slate-300 flex-1">• {ej.ejercicioNombre}</Text>
-                    <Text className="text-slate-400 font-semibold ml-2">
-                      {ej.seriesObjetivo}x{ej.repsObjetivo}
+                {/* Iteramos sobre los Ejercicios de ese Día */}
+                {Object.entries(ejercicios).map(([ejNombre, series], ejIndex) => (
+                  <View key={ejIndex} className="mb-4 ml-2">
+                    <Text className="text-slate-200 font-bold text-base mb-1">
+                      • {ejNombre}
                     </Text>
+                    
+                    {/* Renderizamos las Series como una pequeña lista anidada */}
+                    <View className="ml-4 flex-row flex-wrap">
+                      {series.map((serie, sIndex) => (
+                        <View key={sIndex} className="bg-slate-700/50 px-3 py-1 rounded-md mr-2 mb-2 border border-slate-600">
+                          <Text className="text-slate-300 text-sm">
+                            <Text className="text-slate-400 font-bold">S{serie.orden}: </Text>
+                            {serie.reps} reps <Text className="text-emerald-400/80">@ {serie.peso}kg</Text>
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
                 ))}
               </View>
             ))}
 
-            {/* BOTÓN "EMPEZAR" DENTRO DEL DETALLE PARA NO ESTORBAR AL ACORDEÓN */}
+            {/* BOTÓN "EMPEZAR" */}
             <TouchableOpacity 
-              className="mt-4 bg-blue-600 p-3 rounded-xl items-center shadow-lg"
+              className="mt-2 bg-blue-600 p-4 rounded-xl items-center shadow-lg"
               onPress={() => console.log("Navegar a ActiveWorkout con ID:", item.id)}
             >
               <Text className="text-white font-bold text-lg">🚀 Empezar esta Rutina</Text>
@@ -118,11 +150,9 @@ export default function RoutinesScreen({ navigation }: Props) {
   };
 
   return (
-    // SafeAreaView asegura que nada se monte sobre el menú de navegación nativo de tu móvil
     <SafeAreaView className="flex-1 bg-slate-900">
       <View className="flex-1 p-4">
         
-        {/* CABECERA */}
         <View className="mb-6 mt-2">
           <Text className="text-white text-3xl font-bold">Mis Rutinas</Text>
           <Text className="text-slate-400 mt-1">
@@ -130,7 +160,6 @@ export default function RoutinesScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        {/* LISTADO DE RUTINAS */}
         {loading ? (
           <ActivityIndicator size="large" color="#3b82f6" className="mt-10" />
         ) : rutinas.length === 0 ? (
@@ -149,7 +178,7 @@ export default function RoutinesScreen({ navigation }: Props) {
           />
         )}
 
-        {/* BOTÓN FLOTANTE PARA CREAR NUEVA RUTINA */}
+        {/* BOTÓN FLOTANTE */}
         <TouchableOpacity 
           className="absolute bottom-6 left-4 right-4 bg-emerald-600 p-4 rounded-2xl shadow-lg flex-row justify-center items-center"
           onPress={() => navigation.navigate('CreateRoutine')}

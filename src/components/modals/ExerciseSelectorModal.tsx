@@ -18,8 +18,6 @@ export default function ExerciseSelectorModal({ visible, onClose, onSelect }: Pr
   const { categorias } = useCategorias();
   const { ejercicios, loading } = useEjercicios(categoriaActiva, busqueda);
 
-  if (!visible) return null;
-
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View className="flex-1 bg-slate-900 mt-10 rounded-t-3xl border-t border-slate-700 p-4">

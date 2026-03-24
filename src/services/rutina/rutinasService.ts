@@ -1,19 +1,22 @@
 // src\services\rutina\rutinasService.ts
 
 import { db } from "@/database";
-import { rutinas } from "@/db/schema/rutinas";
-import { rutinaDias } from "@/db/schema/rutina_dias";
-import { rutinaDiaEjercicios } from "@/db/schema/rutina_dia_ejercicios";
+import { rutinas } from "@/db/schema/rutina/rutina";
+
+import { rutinaDiaEjercicios } from "@/db/schema/rutina/rutinaDiaEjercicios";
 import { eq, count, sql } from "drizzle-orm";
-import { FormRutina } from "@/interfaces/rutina";
+
+import { rutinaDias } from "@/db/schema";
+import { FormRutina } from "@/interfaces/form/formRutina";
+import { rutinaDiaEjercicioSeries } from "@/db/schema/rutina/rutinaDiaEjerciciosSeries";
 
 // Guardar rutina completa en transacción
 export const guardarRutinaCompleta = async (formData: FormRutina) => {
   await db.transaction(async (tx) => {
     // 1. Crear Rutina
-    const [nuevaRutina] = await tx.insert(rutinas).values({ nombre: formData.nombre }).returning({ id: rutinas.id });
+    const[nuevaRutina] = await tx.insert(rutinas).values({ nombre: formData.nombre }).returning({ id: rutinas.id });
 
-    // 2. Crear Días y Ejercicios
+    // 2. Crear Días
     for (let i = 0; i < formData.dias.length; i++) {
       const dia = formData.dias[i];
       const [nuevoDia] = await tx.insert(rutinaDias).values({
@@ -22,17 +25,26 @@ export const guardarRutinaCompleta = async (formData: FormRutina) => {
         orden: i + 1,
       }).returning({ id: rutinaDias.id });
 
-      // 3. Crear los ejercicios de ese día
+      // 3. Crear Ejercicios
       for (let j = 0; j < dia.ejercicios.length; j++) {
         const ej = dia.ejercicios[j];
         if (ej.ejercicio_id) {
-          await tx.insert(rutinaDiaEjercicios).values({
+          const [nuevoEjercicio] = await tx.insert(rutinaDiaEjercicios).values({
             rutinaDiaId: nuevoDia.id,
             ejercicioId: ej.ejercicio_id,
-            seriesObjetivo: parseInt(ej.series_objetivo),
-            repsObjetivo: ej.reps_objetivo,
             orden: j + 1
-          });
+          }).returning({ id: rutinaDiaEjercicios.id });
+
+          // 4. Crear las Series para este ejercicio
+          for (let k = 0; k < ej.series.length; k++) {
+            const serie = ej.series[k];
+            await tx.insert(rutinaDiaEjercicioSeries).values({
+              rutinaDiaEjercicioId: nuevoEjercicio.id,
+              serieOrden: k + 1,
+              repsObjetivo: serie.reps_objetivo,
+              pesoObjetivo: serie.peso_objetivo
+            });
+          }
         }
       }
     }
@@ -56,13 +68,18 @@ export const getRutinaCompleta = async (rutinaId: number) => {
     .select({
       diaId: rutinaDias.id,
       diaNombre: rutinaDias.nombre,
+      ejercicioId: rutinaDiaEjercicios.id,
       ejercicioNombre: sql<string>`e.nombre`,
-      seriesObjetivo: rutinaDiaEjercicios.seriesObjetivo,
-      repsObjetivo: rutinaDiaEjercicios.repsObjetivo,
+      serieOrden: rutinaDiaEjercicioSeries.serieOrden,
+      repsObjetivo: rutinaDiaEjercicioSeries.repsObjetivo,
+      pesoObjetivo: rutinaDiaEjercicioSeries.pesoObjetivo,
     })
     .from(rutinaDias)
     .innerJoin(rutinaDiaEjercicios, eq(rutinaDias.id, rutinaDiaEjercicios.rutinaDiaId))
     .innerJoin(sql`ejercicios e`, eq(rutinaDiaEjercicios.ejercicioId, sql`e.id`))
+    // Hacemos LEFT JOIN por si algún ejercicio se guardó sin series por error
+    .leftJoin(rutinaDiaEjercicioSeries, eq(rutinaDiaEjercicios.id, rutinaDiaEjercicioSeries.rutinaDiaEjercicioId))
     .where(eq(rutinaDias.rutinaId, rutinaId))
-    .orderBy(rutinaDias.orden, rutinaDiaEjercicios.orden);
+    // Ordenamos todo jerárquicamente
+    .orderBy(rutinaDias.orden, rutinaDiaEjercicios.orden, rutinaDiaEjercicioSeries.serieOrden);
 };
