@@ -257,6 +257,7 @@ export default function CreateRoutineScreen({ navigation }: Props) {
         className="flex-1 p-4"
         // Le bajamos el paddingBottom porque ya no usamos "absolute" en el botón
         contentContainerStyle={{ paddingBottom: 40 }} 
+        keyboardShouldPersistTaps="handled"
       >
         <Text className="text-slate-400 mb-2 mt-2">Nombre de la Rutina</Text>
         <TextInput
@@ -357,14 +358,26 @@ export default function CreateRoutineScreen({ navigation }: Props) {
 
                       <TextInput
                         className="flex-1 bg-slate-700 text-white p-2 rounded text-center"
-                        keyboardType="default"
+                        keyboardType="numeric"
+                        selectTextOnFocus={true}
+                        // --- EL TRUCO PARA EL SCROLL ---
+                        multiline={true} 
+                        scrollEnabled={false}
+                        blurOnSubmit={true} // Evita que se hagan saltos de línea con el "Intro"
+                        // -------------------------------
                         value={serie.reps_objetivo}
                         onChangeText={(txt) => actualizarSerie(dia.id_temp, ej.id_temp, serie.id_temp, "reps_objetivo", txt)}
                       />
 
                       <TextInput
                         className="flex-1 bg-slate-700 text-white p-2 rounded text-center"
-                        keyboardType="default"
+                        keyboardType="numeric"
+                        selectTextOnFocus={true}
+                        // --- EL TRUCO PARA EL SCROLL ---
+                        multiline={true} 
+                        scrollEnabled={false}
+                        blurOnSubmit={true} // Evita que se hagan saltos de línea con el "Intro"
+                        // -------------------------------
                         value={serie.peso_objetivo}
                         onChangeText={(txt) => actualizarSerie(dia.id_temp, ej.id_temp, serie.id_temp, "peso_objetivo", txt)}
                       />

@@ -6,13 +6,15 @@ import ExerciseItem from "./ExerciseItem";
 interface Props {
   ejercicios: Ejercicio[];
   onExercisePress?: (ejercicio: Ejercicio) => void;
-  onOptionsPress?: (ejercicio: Ejercicio) => void; // Prop añadida
+  onOptionsPress?: (ejercicio: Ejercicio) => void;
+  disableNavigation?: boolean;
 }
 
 export default function ExerciseList({
   ejercicios,
   onExercisePress,
   onOptionsPress,
+  disableNavigation = false,
 }: Props) {
   // Renderizado cuando la lista está vacía
   if (ejercicios.length === 0) {
@@ -34,6 +36,7 @@ export default function ExerciseList({
           ejercicio={item}
           onPress={onExercisePress}
           onOptionsPress={onOptionsPress} // Pasamos el evento hacia arriba
+          disableNavigation={disableNavigation} // Pasamos la prop para deshabilitar la navegación
         />
       )}
       contentContainerStyle={{ paddingBottom: 20 }}
