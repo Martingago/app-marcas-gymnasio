@@ -7,11 +7,11 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { initDB } from "./src/database";
 import { RootStackParamList } from "./src/navigation/types";
 import HomeScreen from "@/navigation/HomeScreen";
-import RoutinesScreen from "@/navigation/RoutinesScreen";
 import ExercisesScreen from "@/navigation/ExercisesScreen";
 import HistoryScreen from "@/navigation/HistoryScreen";
 import ActiveWorkoutScreen from "@/navigation/ActiveWorkoutScreen";
 import CreateRoutineScreen from "@/screens/CreateRoutineScreen";
+import RoutinesScreen from "@/screens/RoutinesScreen";
 
 // Importación de pantallas
 
