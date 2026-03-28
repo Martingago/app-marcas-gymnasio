@@ -4,9 +4,10 @@ import { db } from "@/database";
 import { rutinas } from "@/db/schema/rutina/rutina";
 
 import { rutinaDiaEjercicios } from "@/db/schema/rutina/rutinaDiaEjercicios";
-import { eq, count, sql, inArray } from "drizzle-orm";
+import { eq, sql, inArray, asc } from "drizzle-orm";
 
 import { rutinaDias } from "@/db/schema";
+import { ejercicios } from "@/db/schema/ejercicios";
 import { FormRutina } from "@/interfaces/form/formRutina";
 import { rutinaDiaEjercicioSeries } from "@/db/schema/rutina/rutinaDiaEjerciciosSeries";
 
@@ -64,24 +65,31 @@ export const getRutinasConDetalle = async () => {
 
 // Obtener los días y ejercicios de una rutina especifica (para el desplegable)
 export const getRutinaCompleta = async (rutinaId: number) => {
+  // LEFT JOIN desde rutina_dias: un día sin ejercicios debe aparecer en el resultado;
+  // si solo usáramos INNER JOIN, esos días no existirían en la carga y al guardar se perderían.
   return await db
     .select({
       diaId: rutinaDias.id,
       diaNombre: rutinaDias.nombre,
-      ejercicioId: rutinaDiaEjercicios.id,
-      ejercicioNombre: sql<string>`e.nombre`,
+      /** PK de rutina_dia_ejercicios (único por hueco en el día) */
+      rutinaDiaEjercicioId: rutinaDiaEjercicios.id,
+      /** FK a ejercicios.id — es lo que debe volver al formulario como ejercicio_id al guardar */
+      ejercicioMaestroId: rutinaDiaEjercicios.ejercicioId,
+      ejercicioNombre: ejercicios.nombre,
       serieOrden: rutinaDiaEjercicioSeries.serieOrden,
       repsObjetivo: rutinaDiaEjercicioSeries.repsObjetivo,
       pesoObjetivo: rutinaDiaEjercicioSeries.pesoObjetivo,
     })
     .from(rutinaDias)
-    .innerJoin(rutinaDiaEjercicios, eq(rutinaDias.id, rutinaDiaEjercicios.rutinaDiaId))
-    .innerJoin(sql`ejercicios e`, eq(rutinaDiaEjercicios.ejercicioId, sql`e.id`))
-    // Hacemos LEFT JOIN por si algún ejercicio se guardó sin series por error
+    .leftJoin(rutinaDiaEjercicios, eq(rutinaDias.id, rutinaDiaEjercicios.rutinaDiaId))
+    .leftJoin(ejercicios, eq(rutinaDiaEjercicios.ejercicioId, ejercicios.id))
     .leftJoin(rutinaDiaEjercicioSeries, eq(rutinaDiaEjercicios.id, rutinaDiaEjercicioSeries.rutinaDiaEjercicioId))
     .where(eq(rutinaDias.rutinaId, rutinaId))
-    // Ordenamos todo jerárquicamente
-    .orderBy(rutinaDias.orden, rutinaDiaEjercicios.orden, rutinaDiaEjercicioSeries.serieOrden);
+    .orderBy(
+      asc(rutinaDias.orden),
+      asc(rutinaDiaEjercicios.orden),
+      asc(rutinaDiaEjercicioSeries.serieOrden)
+    );
 };
 
 
@@ -192,23 +200,25 @@ export const getRutinaParaEditar = async (rutinaId: number): Promise<FormRutina>
       formRutina.dias.push(nuevoDia);
     }
 
-    // Crear el ejercicio si no existe
-    if (row.ejercicioId && !ejMap.has(row.ejercicioId)) {
+    // Crear el ejercicio si no existe (clave = fila en rutina_dia_ejercicios, no el id del catálogo)
+    if (row.rutinaDiaEjercicioId != null && !ejMap.has(row.rutinaDiaEjercicioId)) {
       const nuevoEj = {
         id_temp: Math.random().toString(),
-        ejercicio_id: row.ejercicioId, 
-        // Nota: Asegúrate de que tu getRutinaCompleta devuelve el ID REAL del ejercicio de la tabla ejercicios
-        // Para esto, podrías necesitar ajustar ligeramente la select si no traías el id del ejercicio maestro.
-        ejercicio_nombre: row.ejercicioNombre,
+        ejercicio_id: row.ejercicioMaestroId ?? null,
+        ejercicio_nombre: row.ejercicioNombre ?? undefined,
         series:[]
       };
-      ejMap.set(row.ejercicioId, nuevoEj);
-      diasMap.get(row.diaId).ejercicios.push(nuevoEj);
+      ejMap.set(row.rutinaDiaEjercicioId, nuevoEj);
+      diasMap.get(row.diaId)!.ejercicios.push(nuevoEj);
     }
 
-    // Añadir la serie
-    if (row.serieOrden && ejMap.has(row.ejercicioId)) {
-      ejMap.get(row.ejercicioId).series.push({
+    // Añadir la serie (serieOrden puede ser 0 en teoría; no usar truthiness)
+    if (
+      row.serieOrden != null &&
+      row.rutinaDiaEjercicioId != null &&
+      ejMap.has(row.rutinaDiaEjercicioId)
+    ) {
+      ejMap.get(row.rutinaDiaEjercicioId)!.series.push({
         id_temp: Math.random().toString(),
         reps_objetivo: row.repsObjetivo,
         peso_objetivo: row.pesoObjetivo

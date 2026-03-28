@@ -43,8 +43,9 @@ export default function RoutineItem({ rutina, onOptionsPress }: Props) {
         // Agrupamos la info
         const agrupado = detalles.reduce<DiasAgrupados>((acc, curr) => {
           if (!acc[curr.diaNombre]) acc[curr.diaNombre] = {};
-          if (!acc[curr.diaNombre][curr.ejercicioNombre]) acc[curr.diaNombre][curr.ejercicioNombre] =[];
-          if (curr.serieOrden) {
+          if (!curr.ejercicioNombre) return acc;
+          if (!acc[curr.diaNombre][curr.ejercicioNombre]) acc[curr.diaNombre][curr.ejercicioNombre] = [];
+          if (curr.serieOrden != null) {
             acc[curr.diaNombre][curr.ejercicioNombre].push({
               orden: curr.serieOrden,
               reps: curr.repsObjetivo || '-',
