@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -15,37 +15,157 @@ import { useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "@/navigation/types";
 import { getEjerciciosConSeriesParaEntreno } from "@/services/rutina/rutinasService";
 import {
-  crearEntrenamientoConSeries,
-  SerieRegistrada,
+  actualizarSerieRealizada,
+  añadirSerieAlEntrenamiento,
+  eliminarSerieRealizada,
+  fechaLocalHoy,
+  getOrCreateEntrenamientoDelDia,
+  getSeriesDelEntrenamiento,
+  SerieRealizadaRow,
 } from "@/services/entrenamientos/entrenamientosService";
 
 type Props = NativeStackScreenProps<RootStackParamList, "WorkoutSession">;
 
-type SetRow = { reps: string; peso: string };
-type ExState = { ejercicioId: number; nombre: string; sets: SetRow[] };
+type EjercicioUi = {
+  ejercicioId: number;
+  nombre: string;
+  orden: number;
+  series: SerieRealizadaRow[];
+};
+
+function SerieRowEditor({
+  row,
+  onRemoved,
+}: {
+  row: SerieRealizadaRow;
+  onRemoved: () => void;
+}) {
+  const [reps, setReps] = useState(String(row.repeticiones));
+  const [peso, setPeso] = useState(String(row.peso));
+  const [syncing, setSyncing] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const omitirSiguientePersist = useRef(true);
+
+  useEffect(() => {
+    omitirSiguientePersist.current = true;
+  }, [row.id]);
+
+  useEffect(() => {
+    setReps(String(row.repeticiones));
+    setPeso(String(row.peso));
+  }, [row.id, row.repeticiones, row.peso]);
+
+  const persist = useCallback(async () => {
+    const r = parseInt(String(reps).trim(), 10);
+    const p = parseFloat(String(peso).replace(",", "."));
+    if (!Number.isFinite(r) || r <= 0) return;
+    setSyncing(true);
+    try {
+      await actualizarSerieRealizada(row.id, r, Number.isFinite(p) ? p : 0);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSyncing(false);
+    }
+  }, [reps, peso, row.id]);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (omitirSiguientePersist.current) {
+        omitirSiguientePersist.current = false;
+        return;
+      }
+      void persist();
+    }, 500);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [reps, peso, persist]);
+
+  const confirmarBorrar = () => {
+    Alert.alert("Quitar serie", "¿Eliminar esta serie del entreno?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Eliminar",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await eliminarSerieRealizada(row.id);
+            onRemoved();
+          } catch (e) {
+            console.error(e);
+          }
+        },
+      },
+    ]);
+  };
+
+  return (
+    <View className="flex-row items-center mb-2 gap-2 bg-slate-900/60 p-2 rounded-xl border border-slate-700/80">
+      <View className="w-9 items-center">
+        <Text className="text-slate-500 font-bold text-sm">{row.serieOrden}</Text>
+        {syncing ? <ActivityIndicator size="small" color="#64748b" style={{ marginTop: 2 }} /> : null}
+      </View>
+      <TextInput
+        className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px]"
+        keyboardType="number-pad"
+        placeholder="Reps"
+        placeholderTextColor="#64748b"
+        value={reps}
+        onChangeText={setReps}
+        onBlur={() => void persist()}
+      />
+      <TextInput
+        className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px]"
+        keyboardType="decimal-pad"
+        placeholder="Kg"
+        placeholderTextColor="#64748b"
+        value={peso}
+        onChangeText={setPeso}
+        onBlur={() => void persist()}
+      />
+      <TouchableOpacity onPress={confirmarBorrar} className="px-2 py-1" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Text className="text-red-400 text-xl leading-none">×</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 export default function WorkoutSessionScreen({ navigation, route }: Props) {
   const { rutinaDiaId, nombreRutina, nombreDia } = route.params;
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [ejercicios, setEjercicios] = useState<ExState[]>([]);
+  const [entrenamientoId, setEntrenamientoId] = useState<number | null>(null);
+  const [fechaSesion, setFechaSesion] = useState(fechaLocalHoy());
+  const [ejercicios, setEjercicios] = useState<EjercicioUi[]>([]);
 
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getEjerciciosConSeriesParaEntreno(rutinaDiaId);
-      const next: ExState[] = data.map((ej) => {
-        const n = Math.max(ej.seriesPlantilla.length, 1);
-        const sets: SetRow[] = Array.from({ length: n }, (_, i) => ({
-          reps: ej.seriesPlantilla[i]?.reps ?? "10",
-          peso: ej.seriesPlantilla[i]?.peso ?? "0",
-        }));
-        return { ejercicioId: ej.ejercicioId, nombre: ej.nombre, sets };
-      });
-      setEjercicios(next);
+      const template = await getEjerciciosConSeriesParaEntreno(rutinaDiaId);
+      if (template.length === 0) {
+        setEjercicios([]);
+        setEntrenamientoId(null);
+        return;
+      }
+
+      const entId = await getOrCreateEntrenamientoDelDia(rutinaDiaId);
+      setEntrenamientoId(entId);
+      setFechaSesion(fechaLocalHoy());
+
+      const todas = await getSeriesDelEntrenamiento(entId);
+
+      const merged: EjercicioUi[] = template.map((ej) => ({
+        ejercicioId: ej.ejercicioId,
+        nombre: ej.nombre,
+        orden: ej.orden,
+        series: todas.filter((s) => s.ejercicioId === ej.ejercicioId),
+      }));
+
+      setEjercicios(merged);
     } catch (e) {
       console.error(e);
-      Alert.alert("Error", "No se pudieron cargar los ejercicios del día.");
+      Alert.alert("Error", "No se pudo cargar el entreno.");
     } finally {
       setLoading(false);
     }
@@ -53,84 +173,18 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
 
   useFocusEffect(
     useCallback(() => {
-      cargar();
+      void cargar();
     }, [cargar])
   );
 
-  const actualizarSet = (
-    ei: number,
-    si: number,
-    campo: keyof SetRow,
-    valor: string
-  ) => {
-    setEjercicios((prev) =>
-      prev.map((ex, i) =>
-        i !== ei
-          ? ex
-          : {
-              ...ex,
-              sets: ex.sets.map((s, j) => (j === si ? { ...s, [campo]: valor } : s)),
-            }
-      )
-    );
-  };
-
-  const agregarSerie = (ei: number) => {
-    setEjercicios((prev) =>
-      prev.map((ex, i) =>
-        i !== ei ? ex : { ...ex, sets: [...ex.sets, { reps: "10", peso: "0" }] }
-      )
-    );
-  };
-
-  const quitarSerie = (ei: number, si: number) => {
-    setEjercicios((prev) =>
-      prev.map((ex, i) =>
-        i !== ei
-          ? ex
-          : { ...ex, sets: ex.sets.filter((_, j) => j !== si || ex.sets.length <= 1) }
-      )
-    );
-  };
-
-  const guardar = async () => {
-    const fechaISO = new Date().toISOString();
-    const seriesRegistros: SerieRegistrada[] = [];
-
-    for (const ex of ejercicios) {
-      ex.sets.forEach((set, idx) => {
-        const reps = parseInt(String(set.reps).trim(), 10);
-        const peso = parseFloat(String(set.peso).replace(",", "."));
-        if (!Number.isFinite(reps) || reps <= 0) return;
-        seriesRegistros.push({
-          ejercicioId: ex.ejercicioId,
-          serieOrden: idx + 1,
-          repeticiones: reps,
-          peso: Number.isFinite(peso) ? peso : 0,
-        });
-      });
-    }
-
-    if (seriesRegistros.length === 0) {
-      Alert.alert("Sin datos", "Introduce al menos una serie con repeticiones válidas.");
-      return;
-    }
-
-    setSaving(true);
+  const añadirSerie = async (ejercicioId: number) => {
+    if (!entrenamientoId) return;
     try {
-      await crearEntrenamientoConSeries({
-        rutinaDiaId,
-        fechaISO,
-        seriesRegistros,
-      });
-      Alert.alert("Guardado", "Entreno registrado correctamente.", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
+      await añadirSerieAlEntrenamiento(entrenamientoId, ejercicioId);
+      await cargar();
     } catch (e) {
       console.error(e);
-      Alert.alert("Error", "No se pudo guardar el entreno.");
-    } finally {
-      setSaving(false);
+      Alert.alert("Error", "No se pudo añadir la serie.");
     }
   };
 
@@ -155,60 +209,54 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
     );
   }
 
+  const fechaLegible = (() => {
+    const [y, m, d] = fechaSesion.split("-").map(Number);
+    if (!y || !m || !d) return fechaSesion;
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+  })();
+
   return (
     <SafeAreaView edges={["bottom", "left", "right"]} className="flex-1 bg-slate-900">
-      <ScrollView className="flex-1 px-4 pt-2" contentContainerStyle={{ paddingBottom: 120 }}>
-        <Text className="text-slate-400 text-xs font-bold uppercase mb-1">{nombreRutina}</Text>
-        <Text className="text-white text-2xl font-bold mb-1">{nombreDia}</Text>
-        <Text className="text-slate-500 text-sm mb-6">Anota reps y peso por serie</Text>
+      <ScrollView className="flex-1 px-4 pt-2" contentContainerStyle={{ paddingBottom: 32 }}>
+        <View className="bg-slate-800/90 border border-slate-600 rounded-2xl p-4 mb-5">
+          <Text className="text-slate-400 text-xs font-bold uppercase mb-1">{nombreRutina}</Text>
+          <Text className="text-white text-2xl font-bold mb-1">{nombreDia}</Text>
+          <Text className="text-slate-500 text-sm capitalize mb-3">{fechaLegible}</Text>
+          <View className="flex-row items-center gap-2">
+            <View className="w-2 h-2 rounded-full bg-emerald-500" />
+            <Text className="text-emerald-400/90 text-sm flex-1">
+              Cada serie se guarda sola. Puedes cerrar la app y seguir más tarde.
+            </Text>
+          </View>
+        </View>
 
         {ejercicios.map((ex, ei) => (
           <View key={`${ex.ejercicioId}-${ei}`} className="bg-slate-800/80 rounded-2xl p-4 mb-4 border border-slate-700">
-            <Text className="text-white text-lg font-bold mb-3">{ex.nombre}</Text>
-            {ex.sets.map((set, si) => (
-              <View key={si} className="flex-row items-center mb-2 gap-2">
-                <Text className="text-slate-500 w-8 text-center font-bold">{si + 1}</Text>
-                <TextInput
-                  className="flex-1 bg-slate-900 text-white p-2 rounded-lg text-center"
-                  keyboardType="numeric"
-                  placeholder="Reps"
-                  placeholderTextColor="#64748b"
-                  value={set.reps}
-                  onChangeText={(t) => actualizarSet(ei, si, "reps", t)}
-                />
-                <TextInput
-                  className="flex-1 bg-slate-900 text-white p-2 rounded-lg text-center"
-                  keyboardType="decimal-pad"
-                  placeholder="Kg"
-                  placeholderTextColor="#64748b"
-                  value={set.peso}
-                  onChangeText={(t) => actualizarSet(ei, si, "peso", t)}
-                />
-                <TouchableOpacity onPress={() => quitarSerie(ei, si)} className="px-2">
-                  <Text className="text-red-400 text-lg">×</Text>
-                </TouchableOpacity>
-              </View>
+            <Text className="text-white text-lg font-bold mb-1">{ex.nombre}</Text>
+            <Text className="text-slate-500 text-xs mb-3">
+              {ex.series.length === 0
+                ? "Aún no has registrado series. Pulsa el botón cuando termines una."
+                : `${ex.series.length} serie${ex.series.length === 1 ? "" : "s"} registrada${ex.series.length === 1 ? "" : "s"}`}
+            </Text>
+
+            {ex.series.map((row) => (
+              <SerieRowEditor key={row.id} row={row} onRemoved={() => void cargar()} />
             ))}
-            <TouchableOpacity onPress={() => agregarSerie(ei)} className="mt-2 py-2">
-              <Text className="text-blue-400 text-center text-sm font-bold">+ Añadir serie</Text>
+
+            <TouchableOpacity
+              className="mt-3 py-3 bg-blue-600/90 rounded-xl border border-blue-500/50"
+              onPress={() => void añadirSerie(ex.ejercicioId)}
+              activeOpacity={0.85}
+            >
+              <Text className="text-white text-center font-bold">+ Registrar serie hecha</Text>
             </TouchableOpacity>
           </View>
         ))}
       </ScrollView>
-
-      <View className="p-4 border-t border-slate-800 bg-slate-900">
-        <TouchableOpacity
-          className={`p-4 rounded-xl items-center ${saving ? "bg-emerald-800" : "bg-emerald-600"}`}
-          onPress={guardar}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text className="text-white font-bold text-lg">Finalizar y guardar entreno</Text>
-          )}
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
