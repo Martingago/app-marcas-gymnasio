@@ -205,9 +205,41 @@ export const getSeriesDelEntrenamiento = async (
 export const añadirSerieAlEntrenamiento = async (
   entrenamientoId: number,
   ejercicioId: number,
-  valores?: { repeticiones?: number; peso?: number }
+  valores?: { repeticiones?: number; peso?: number; serieOrden?: number }
 ): Promise<number> => {
   await assertEntrenoEditable(entrenamientoId);
+
+  const reps = valores?.repeticiones ?? 10;
+  const peso = valores?.peso ?? 0;
+
+  if (valores?.serieOrden != null) {
+    const orden = valores.serieOrden;
+    const [existe] = await db
+      .select({ id: series.id })
+      .from(series)
+      .where(
+        and(
+          eq(series.entrenamientoId, entrenamientoId),
+          eq(series.ejercicioId, ejercicioId),
+          eq(series.serieOrden, orden)
+        )
+      )
+      .limit(1);
+    if (existe) return existe.id;
+
+    const [row] = await db
+      .insert(series)
+      .values({
+        entrenamientoId,
+        ejercicioId,
+        serieOrden: orden,
+        repeticiones: reps,
+        peso,
+        esDropset: 0,
+      })
+      .returning({ id: series.id });
+    return row.id;
+  }
 
   const [agg] = await db
     .select({ m: max(series.serieOrden) })
@@ -215,8 +247,6 @@ export const añadirSerieAlEntrenamiento = async (
     .where(and(eq(series.entrenamientoId, entrenamientoId), eq(series.ejercicioId, ejercicioId)));
 
   const siguienteOrden = (Number(agg?.m) || 0) + 1;
-  const reps = valores?.repeticiones ?? 10;
-  const peso = valores?.peso ?? 0;
 
   const [row] = await db
     .insert(series)

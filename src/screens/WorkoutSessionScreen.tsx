@@ -39,6 +39,26 @@ type EjercicioUi = {
   series: SerieRealizadaRow[];
 };
 
+function comparativaObjetivoReal(
+  plant: { reps: string; peso: string } | undefined,
+  rRep: number,
+  rPeso: number
+): { texto: string; ok: boolean } | null {
+  if (!plant) return null;
+  const oR = parseInt(String(plant.reps).trim(), 10);
+  const oP = parseFloat(String(plant.peso).replace(",", "."));
+  if (!Number.isFinite(oR) || oR <= 0 || !Number.isFinite(oP)) return null;
+  const repsOk = rRep >= oR;
+  const pesoOk = rPeso >= oP - 0.01;
+  if (repsOk && pesoOk) {
+    return { texto: "Objetivo alcanzado o superado.", ok: true };
+  }
+  const p: string[] = [];
+  if (!repsOk) p.push(`reps por debajo del objetivo (${rRep} / ${oR})`);
+  if (!pesoOk) p.push(`peso por debajo del objetivo (${rPeso} / ${oP})`);
+  return { texto: p.join(" · "), ok: false };
+}
+
 function SerieRowEditor({
   row,
   objetivoMeta,
@@ -115,13 +135,14 @@ function SerieRowEditor({
     ]);
   };
 
+  const rTry = parseInt(String(reps).trim(), 10);
+  const pTry = parseFloat(String(peso).replace(",", "."));
+  const effRep = Number.isFinite(rTry) && rTry > 0 ? rTry : row.repeticiones;
+  const effPeso = Number.isFinite(pTry) ? pTry : row.peso;
+  const comp = objetivoMeta ? comparativaObjetivoReal(objetivoMeta, effRep, effPeso) : null;
+
   return (
     <View className="mb-2">
-      {objetivoMeta ? (
-        <Text className="text-amber-500/90 text-xs mb-1 ml-1">
-          Objetivo: {objetivoMeta.reps} reps · {objetivoMeta.peso} kg
-        </Text>
-      ) : null}
       <View className="flex-row items-center gap-2 bg-slate-900/60 p-2 rounded-xl border border-slate-700/80">
         <View className="w-9 items-center">
           <Text className="text-slate-500 font-bold text-sm">{row.serieOrden}</Text>
@@ -165,12 +186,52 @@ function SerieRowEditor({
           </>
         )}
       </View>
+      {objetivoMeta ? (
+        <Text className="text-slate-500 text-xs mt-1 ml-1">
+          Objetivo: {objetivoMeta.reps} reps · {objetivoMeta.peso} kg · Registrado: {effRep} reps · {effPeso} kg
+        </Text>
+      ) : null}
+      {comp ? (
+        <Text className={`text-xs mt-1 ml-1 ${comp.ok ? "text-emerald-400" : "text-amber-400/90"}`}>{comp.texto}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+function SlotSinRegistrar({
+  orden,
+  plant,
+  editable,
+  onRegistrar,
+}: {
+  orden: number;
+  plant: { reps: string; peso: string };
+  editable: boolean;
+  onRegistrar: () => void;
+}) {
+  return (
+    <View className="mb-4 bg-slate-900/50 border border-dashed border-slate-600 rounded-xl p-3">
+      <Text className="text-slate-500 text-xs mb-1">Serie {orden}</Text>
+      <Text className="text-amber-400/95 font-bold text-base mb-1">
+        Objetivo de la rutina: {plant.reps} reps · {plant.peso} kg
+      </Text>
+      <Text className="text-slate-400 text-sm leading-5 mb-3">
+        Tu objetivo para esta serie es de {plant.reps} repeticiones y {plant.peso} kg. Cuando la completes, registra lo
+        que hayas hecho en realidad.
+      </Text>
+      {editable ? (
+        <TouchableOpacity className="bg-slate-700 py-3 rounded-lg border border-slate-600" onPress={onRegistrar} activeOpacity={0.85}>
+          <Text className="text-white text-center font-bold">Registrar esta serie</Text>
+        </TouchableOpacity>
+      ) : (
+        <Text className="text-slate-600 text-sm">No registrada.</Text>
+      )}
     </View>
   );
 }
 
 export default function WorkoutSessionScreen({ navigation, route }: Props) {
-  const { rutinaDiaId, nombreRutina, nombreDia } = route.params;
+  const { rutinaId, rutinaDiaId, nombreRutina, nombreDia } = route.params;
   const [loading, setLoading] = useState(true);
   const [entrenamientoId, setEntrenamientoId] = useState<number | null>(null);
   const [finalizado, setFinalizado] = useState(false);
@@ -197,7 +258,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
         if (esErrorOtroDiaActivo(e)) {
           Alert.alert(
             "Otro día en curso",
-            "Ya tienes un entreno sin finalizar en otro día de esta rutina. Ábrelo, finalízalo o revisa el día recomendado desde la lista.",
+            "Ya tienes un entreno sin finalizar en otro día de esta rutina.",
             [{ text: "OK", onPress: () => navigation.goBack() }]
           );
           return;
@@ -235,33 +296,42 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
     }, [cargar])
   );
 
-  const objetivoParaSerie = (ej: EjercicioUi, serieOrden: number) => {
-    const idx = serieOrden - 1;
+  const objetivoParaOrden = (ej: EjercicioUi, orden: number) => {
+    const idx = orden - 1;
     const p = ej.seriesPlantilla[idx];
     if (!p) return null;
     return { reps: p.reps, peso: p.peso };
   };
 
-  const añadirSerie = async (ej: EjercicioUi) => {
+  const registrarSeriePlantilla = async (ej: EjercicioUi, orden: number) => {
     if (!entrenamientoId || finalizado) return;
-    const idx = ej.series.length;
-    const plant = ej.seriesPlantilla[idx];
+    const plant = ej.seriesPlantilla[orden - 1];
     const repeticiones = plant ? parseInt(String(plant.reps).trim(), 10) : 10;
     const pesoVal = plant ? parseFloat(String(plant.peso).replace(",", ".")) : 0;
     try {
       await añadirSerieAlEntrenamiento(entrenamientoId, ej.ejercicioId, {
+        serieOrden: orden,
         repeticiones: Number.isFinite(repeticiones) && repeticiones > 0 ? repeticiones : 10,
         peso: Number.isFinite(pesoVal) ? pesoVal : 0,
       });
       await cargar();
     } catch (e) {
       console.error(e);
-      const msg = e instanceof Error ? e.message : "";
-      if (msg === "SESION_FINALIZADA") {
-        Alert.alert("Sesión cerrada", "Este día ya está finalizado.");
-      } else {
-        Alert.alert("Error", "No se pudo añadir la serie.");
-      }
+      Alert.alert("Error", "No se pudo registrar la serie.");
+    }
+  };
+
+  const añadirSerieExtra = async (ej: EjercicioUi) => {
+    if (!entrenamientoId || finalizado) return;
+    try {
+      await añadirSerieAlEntrenamiento(entrenamientoId, ej.ejercicioId, {
+        repeticiones: 10,
+        peso: 0,
+      });
+      await cargar();
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Error", "No se pudo añadir la serie.");
     }
   };
 
@@ -271,11 +341,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
     try {
       await finalizarEntrenamientoDia(entrenamientoId);
       setModalFinalizar(false);
-      await cargar();
-      Alert.alert(
-        "Día finalizado",
-        "Ya no podrás editar este entreno. El siguiente día recomendado se actualizará según lo que acabas de completar."
-      );
+      navigation.navigate("RoutineDayPicker", { rutinaId, nombreRutina });
     } catch (e) {
       console.error(e);
       Alert.alert("Error", "No se pudo finalizar el día.");
@@ -351,7 +417,6 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
           {finalizado ? (
             <View className="bg-slate-700/80 px-3 py-2 rounded-lg border border-slate-600 mb-2">
               <Text className="text-slate-300 text-sm font-semibold">Día finalizado · solo lectura</Text>
-              <Text className="text-slate-500 text-xs mt-1">Puedes eliminar el registro completo si lo necesitas.</Text>
             </View>
           ) : (
             <View className="flex-row items-center gap-2">
@@ -363,42 +428,81 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
           )}
         </View>
 
-        {ejercicios.map((ex, ei) => (
-          <View key={`${ex.ejercicioId}-${ei}`} className="bg-slate-800/80 rounded-2xl p-4 mb-4 border border-slate-700">
-            <Text className="text-white text-lg font-bold mb-1">{ex.nombre}</Text>
-            {ex.seriesPlantilla.length > 0 ? (
-              <Text className="text-slate-500 text-xs mb-2">
-                Meta de la rutina: {ex.seriesPlantilla.length} serie{ex.seriesPlantilla.length === 1 ? "" : "s"} planificada
-                {ex.seriesPlantilla.length === 1 ? "" : "s"} (referencia, no obligatorio completarlas todas).
-              </Text>
-            ) : null}
-            <Text className="text-slate-500 text-xs mb-3">
-              {ex.series.length === 0
-                ? "Registra cada serie cuando la completes."
-                : `${ex.series.length} serie${ex.series.length === 1 ? "" : "s"} anotada${ex.series.length === 1 ? "" : "s"}`}
-            </Text>
+        {ejercicios.map((ex, ei) => {
+          const extras = ex.series
+            .filter((s) => s.serieOrden > ex.seriesPlantilla.length)
+            .sort((a, b) => a.serieOrden - b.serieOrden);
 
-            {ex.series.map((row) => (
-              <SerieRowEditor
-                key={row.id}
-                row={row}
-                editable={editable}
-                objetivoMeta={objetivoParaSerie(ex, row.serieOrden)}
-                onRemoved={() => void cargar()}
-              />
-            ))}
+          return (
+            <View key={`${ex.ejercicioId}-${ei}`} className="bg-slate-800/80 rounded-2xl p-4 mb-4 border border-slate-700">
+              <Text className="text-white text-lg font-bold mb-2">{ex.nombre}</Text>
 
-            {editable ? (
-              <TouchableOpacity
-                className="mt-3 py-3 bg-blue-600/90 rounded-xl border border-blue-500/50"
-                onPress={() => void añadirSerie(ex)}
-                activeOpacity={0.85}
-              >
-                <Text className="text-white text-center font-bold">+ Registrar serie hecha</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ))}
+              {ex.seriesPlantilla.map((plant, idx) => {
+                const orden = idx + 1;
+                const real = ex.series.find((s) => s.serieOrden === orden);
+                const meta = { reps: plant.reps, peso: plant.peso };
+
+                return (
+                  <View key={`slot-${orden}`} className="mb-1">
+                    {!real ? (
+                      <SlotSinRegistrar
+                        orden={orden}
+                        plant={plant}
+                        editable={editable}
+                        onRegistrar={() => void registrarSeriePlantilla(ex, orden)}
+                      />
+                    ) : (
+                      <>
+                        <Text className="text-slate-500 text-xs mb-1 ml-1">Serie {orden}</Text>
+                        <Text className="text-amber-500/95 text-xs font-semibold mb-1 ml-1">
+                          Objetivo rutina: {meta.reps} reps · {meta.peso} kg
+                        </Text>
+                        <SerieRowEditor
+                          row={real}
+                          objetivoMeta={meta}
+                          editable={editable}
+                          onRemoved={() => void cargar()}
+                        />
+                      </>
+                    )}
+                  </View>
+                );
+              })}
+
+              {extras.map((row) => {
+                const meta = objetivoParaOrden(ex, row.serieOrden);
+                return (
+                  <View key={`extra-${row.id}`}>
+                    <Text className="text-slate-500 text-xs mb-1 ml-1 mt-2">Serie extra {row.serieOrden}</Text>
+                    {meta ? (
+                      <Text className="text-amber-500/90 text-xs mb-1 ml-1">
+                        Objetivo rutina (si aplica): {meta.reps} reps · {meta.peso} kg
+                      </Text>
+                    ) : (
+                      <Text className="text-slate-500 text-xs mb-1 ml-1">Serie adicional</Text>
+                    )}
+                    <SerieRowEditor
+                      row={row}
+                      objetivoMeta={meta}
+                      editable={editable}
+                      onRemoved={() => void cargar()}
+                    />
+                  </View>
+                );
+              })}
+
+              {editable ? (
+                <TouchableOpacity
+                  className="mt-3 py-3 bg-blue-600/90 rounded-xl border border-blue-500/50"
+                  onPress={() => void añadirSerieExtra(ex)}
+                  activeOpacity={0.85}
+                >
+                  <Text className="text-white text-center font-bold">+ Añadir serie extra</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          );
+        })}
       </ScrollView>
 
       <View className="p-4 border-t border-slate-800 bg-slate-900 gap-3">
@@ -427,7 +531,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
             <Text className="text-white text-xl font-bold mb-2">¿Finalizar este día?</Text>
             <Text className="text-slate-400 text-sm leading-5 mb-6">
               Al confirmar, este entreno quedará cerrado y no podrás editar series. No hace falta haber completado todos
-              los ejercicios. El siguiente día recomendado se basará en el último día finalizado (orden de la rutina).
+              los ejercicios. Volverás a la lista de días con el siguiente día recomendado actualizado.
             </Text>
             <View className="flex-row gap-3">
               <TouchableOpacity className="flex-1 py-3 rounded-xl bg-slate-700" onPress={() => setModalFinalizar(false)}>

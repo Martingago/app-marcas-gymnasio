@@ -13,6 +13,7 @@ import ActiveWorkoutScreen from "@/navigation/ActiveWorkoutScreen";
 import CreateRoutineScreen from "@/screens/CreateRoutineScreen";
 import RoutinesScreen from "@/screens/RoutinesScreen";
 import RoutineDayPickerScreen from "@/screens/RoutineDayPickerScreen";
+import RoutineDayPreviewScreen from "@/screens/RoutineDayPreviewScreen";
 import WorkoutSessionScreen from "@/screens/WorkoutSessionScreen";
 import RoutineHistoryScreen from "@/screens/RoutineHistoryScreen";
 import SessionDetailScreen from "@/screens/SessionDetailScreen";
@@ -83,6 +84,11 @@ export default function App() {
           name="RoutineDayPicker"
           component={RoutineDayPickerScreen}
           options={{ title: "Elegir día" }}
+        />
+        <Stack.Screen
+          name="RoutineDayPreview"
+          component={RoutineDayPreviewScreen}
+          options={{ title: "Vista del día" }}
         />
         <Stack.Screen
           name="WorkoutSession"

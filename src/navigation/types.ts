@@ -6,6 +6,13 @@ export type RootStackParamList = {
   ExerciseDetail: { ejercicioId: number };
   ActiveWorkout: undefined;
   RoutineDayPicker: { rutinaId: number; nombreRutina: string };
+  /** Vista previa del día (sin crear sesión de entreno) */
+  RoutineDayPreview: {
+    rutinaId: number;
+    rutinaDiaId: number;
+    nombreRutina: string;
+    nombreDia: string;
+  };
   WorkoutSession: {
     rutinaId: number;
     rutinaDiaId: number;

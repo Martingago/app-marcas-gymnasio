@@ -99,7 +99,7 @@ export default function RoutineDayPickerScreen({ navigation, route }: Props) {
                     );
                     return;
                   }
-                  navigation.navigate("WorkoutSession", {
+                  navigation.navigate("RoutineDayPreview", {
                     rutinaId,
                     rutinaDiaId: item.id,
                     nombreRutina,
