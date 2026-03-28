@@ -21,9 +21,11 @@ interface DiasAgrupados {
 interface Props {
   rutina: any; // Aquí puedes poner la interfaz estricta si la tienes
   onOptionsPress: (rutina: any) => void;
+  onStartWorkout?: (rutina: any) => void;
+  onRoutineHistory?: (rutina: any) => void;
 }
 
-export default function RoutineItem({ rutina, onOptionsPress }: Props) {
+export default function RoutineItem({ rutina, onOptionsPress, onStartWorkout, onRoutineHistory }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const[diasAgrupados, setDiasAgrupados] = useState<DiasAgrupados | null>(null);
@@ -97,6 +99,21 @@ export default function RoutineItem({ rutina, onOptionsPress }: Props) {
 
       </View>
 
+      <View className="flex-row px-5 pb-4 gap-2">
+        <TouchableOpacity
+          className="flex-1 bg-blue-600 py-3 rounded-xl items-center"
+          onPress={() => onStartWorkout?.(rutina)}
+        >
+          <Text className="text-white font-bold">Entrenar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          className="flex-1 bg-slate-700 py-3 rounded-xl items-center border border-slate-600"
+          onPress={() => onRoutineHistory?.(rutina)}
+        >
+          <Text className="text-slate-200 font-bold">Historial</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* CONTENIDO DESPLEGABLE */}
       {isExpanded && (
         <View className="px-5 pb-5 border-t border-slate-700 pt-3 bg-slate-800/80">
@@ -127,13 +144,6 @@ export default function RoutineItem({ rutina, onOptionsPress }: Props) {
               </View>
             ))
           ) : null}
-
-          <TouchableOpacity 
-            className="mt-2 bg-blue-600 p-4 rounded-xl items-center shadow-lg"
-            onPress={() => console.log("Navegar a ActiveWorkout con ID:", rutina.id)}
-          >
-            <Text className="text-white font-bold text-lg">🚀 Empezar esta Rutina</Text>
-          </TouchableOpacity>
         </View>
       )}
     </View>

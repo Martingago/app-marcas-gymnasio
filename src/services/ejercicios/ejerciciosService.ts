@@ -108,3 +108,18 @@ export const deleteEjercicio = async (id: number): Promise<void> => {
     .delete(ejercicios)
     .where(eq(ejercicios.id, id));
 };
+
+export const getEjercicioById = async (id: number): Promise<Ejercicio | null> => {
+  const rows = await db
+    .select({
+      id: ejercicios.id,
+      nombre: ejercicios.nombre,
+      categoria_id: ejercicios.categoriaId,
+      categoria_nombre: categorias.nombre,
+    })
+    .from(ejercicios)
+    .leftJoin(categorias, eq(ejercicios.categoriaId, categorias.id))
+    .where(eq(ejercicios.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+};

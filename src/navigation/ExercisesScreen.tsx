@@ -8,8 +8,12 @@ import { Ejercicio } from '@/interfaces/ejercicio';
 // Importamos los modales
 import { OptionsModal, DeleteModal, FormModal } from '@/components/modals/ExerciseModals';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '@/navigation/types';
 
-export default function ExercisesScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, 'Exercises'>;
+
+export default function ExercisesScreen({ navigation }: Props) {
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null);
   
   // Estados para controlar Modales
@@ -84,10 +88,10 @@ export default function ExercisesScreen() {
       {loading ? (
         <ActivityIndicator size="large" color="#3b82f6" className="mt-10" />
       ) : (
-        <ExerciseList 
-          ejercicios={ejercicios} 
-          onExercisePress={(ej) => console.log("Navegar a detalles:", ej.nombre)}
-          onOptionsPress={handleOpenOptions} // Recibimos el clic de los 3 puntitos
+        <ExerciseList
+          ejercicios={ejercicios}
+          onExercisePress={(ej) => navigation.navigate("ExerciseDetail", { ejercicioId: ej.id })}
+          onOptionsPress={handleOpenOptions}
         />
       )}
 

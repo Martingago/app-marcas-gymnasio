@@ -12,6 +12,11 @@ import HistoryScreen from "@/navigation/HistoryScreen";
 import ActiveWorkoutScreen from "@/navigation/ActiveWorkoutScreen";
 import CreateRoutineScreen from "@/screens/CreateRoutineScreen";
 import RoutinesScreen from "@/screens/RoutinesScreen";
+import RoutineDayPickerScreen from "@/screens/RoutineDayPickerScreen";
+import WorkoutSessionScreen from "@/screens/WorkoutSessionScreen";
+import RoutineHistoryScreen from "@/screens/RoutineHistoryScreen";
+import SessionDetailScreen from "@/screens/SessionDetailScreen";
+import ExerciseDetailScreen from "@/screens/ExerciseDetailScreen";
 
 // Importación de pantallas
 
@@ -68,6 +73,31 @@ export default function App() {
           name="Exercises"
           component={ExercisesScreen}
           options={{ title: "Ejercicios" }}
+        />
+        <Stack.Screen
+          name="ExerciseDetail"
+          component={ExerciseDetailScreen}
+          options={{ title: "Ejercicio" }}
+        />
+        <Stack.Screen
+          name="RoutineDayPicker"
+          component={RoutineDayPickerScreen}
+          options={{ title: "Elegir día" }}
+        />
+        <Stack.Screen
+          name="WorkoutSession"
+          component={WorkoutSessionScreen}
+          options={{ title: "Entreno" }}
+        />
+        <Stack.Screen
+          name="RoutineHistory"
+          component={RoutineHistoryScreen}
+          options={{ title: "Historial rutina" }}
+        />
+        <Stack.Screen
+          name="SessionDetail"
+          component={SessionDetailScreen}
+          options={{ title: "Detalle entreno" }}
         />
         <Stack.Screen
           name="ActiveWorkout"

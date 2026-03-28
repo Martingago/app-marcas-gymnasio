@@ -105,9 +105,21 @@ export default function RoutinesScreen({ navigation }: Props) {
             data={rutinas}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
-              <RoutineItem 
-                rutina={item} 
-                onOptionsPress={handleOptionsPress} 
+              <RoutineItem
+                rutina={item}
+                onOptionsPress={handleOptionsPress}
+                onStartWorkout={(r) =>
+                  navigation.navigate("RoutineDayPicker", {
+                    rutinaId: r.id,
+                    nombreRutina: r.nombre,
+                  })
+                }
+                onRoutineHistory={(r) =>
+                  navigation.navigate("RoutineHistory", {
+                    rutinaId: r.id,
+                    nombreRutina: r.nombre,
+                  })
+                }
               />
             )}
             showsVerticalScrollIndicator={false}

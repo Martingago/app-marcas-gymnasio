@@ -4,11 +4,11 @@ import { db } from "@/database";
 import { rutinas } from "@/db/schema/rutina/rutina";
 
 import { rutinaDiaEjercicios } from "@/db/schema/rutina/rutinaDiaEjercicios";
-import { eq, sql, inArray, asc } from "drizzle-orm";
+import { eq, sql, asc } from "drizzle-orm";
 
 import { rutinaDias } from "@/db/schema";
 import { ejercicios } from "@/db/schema/ejercicios";
-import { FormRutina } from "@/interfaces/form/formRutina";
+import { FormRutina, FormRutinaDiaEjercicio } from "@/interfaces/form/formRutina";
 import { rutinaDiaEjercicioSeries } from "@/db/schema/rutina/rutinaDiaEjerciciosSeries";
 
 // Guardar rutina completa en transacción
@@ -99,75 +99,177 @@ export const eliminarRutina = async (rutinaId: number) => {
   await db.delete(rutinas).where(eq(rutinas.id, rutinaId));
 };
 
-// Editar Rutina (Técnica de Overwrite)
+/** Días de una rutina ordenados (elegir día para entrenar). */
+export const getDiasPorRutina = async (rutinaId: number) => {
+  return db
+    .select()
+    .from(rutinaDias)
+    .where(eq(rutinaDias.rutinaId, rutinaId))
+    .orderBy(asc(rutinaDias.orden));
+};
+
+export type EjercicioDiaEntreno = {
+  rutinaDiaEjercicioId: number;
+  ejercicioId: number;
+  nombre: string;
+  orden: number;
+  seriesPlantilla: { reps: string; peso: string }[];
+};
+
+/** Ejercicios de un día con series objetivo para precargar el entreno */
+export const getEjerciciosConSeriesParaEntreno = async (
+  rutinaDiaId: number
+): Promise<EjercicioDiaEntreno[]> => {
+  const rows = await db
+    .select({
+      rdeId: rutinaDiaEjercicios.id,
+      orden: rutinaDiaEjercicios.orden,
+      ejId: rutinaDiaEjercicios.ejercicioId,
+      ejNombre: ejercicios.nombre,
+      serieOrden: rutinaDiaEjercicioSeries.serieOrden,
+      repsObjetivo: rutinaDiaEjercicioSeries.repsObjetivo,
+      pesoObjetivo: rutinaDiaEjercicioSeries.pesoObjetivo,
+    })
+    .from(rutinaDiaEjercicios)
+    .innerJoin(ejercicios, eq(rutinaDiaEjercicios.ejercicioId, ejercicios.id))
+    .leftJoin(
+      rutinaDiaEjercicioSeries,
+      eq(rutinaDiaEjercicios.id, rutinaDiaEjercicioSeries.rutinaDiaEjercicioId)
+    )
+    .where(eq(rutinaDiaEjercicios.rutinaDiaId, rutinaDiaId))
+    .orderBy(asc(rutinaDiaEjercicios.orden), asc(rutinaDiaEjercicioSeries.serieOrden));
+
+  const map = new Map<number, EjercicioDiaEntreno>();
+  for (const r of rows) {
+    if (!map.has(r.rdeId)) {
+      map.set(r.rdeId, {
+        rutinaDiaEjercicioId: r.rdeId,
+        ejercicioId: r.ejId!,
+        nombre: r.ejNombre!,
+        orden: r.orden,
+        seriesPlantilla: [],
+      });
+    }
+    if (r.serieOrden != null) {
+      map.get(r.rdeId)!.seriesPlantilla.push({
+        reps: String(r.repsObjetivo ?? "10"),
+        peso: String(r.pesoObjetivo ?? "0"),
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.orden - b.orden);
+};
+
+// Editar Rutina: sincronización incremental (conserva ids de días/ejercicios → historial de entrenos)
 export const editarRutinaCompleta = async (rutinaId: number | string, formData: FormRutina) => {
-  // Aseguramos que el ID sea numérico por si React Navigation lo pasa como String
   const idFormateado = Number(rutinaId);
 
   await db.transaction(async (tx) => {
-    // 1. Actualizar el nombre de la Rutina
-    await tx.update(rutinas)
-            .set({ nombre: formData.nombre })
-            .where(eq(rutinas.id, idFormateado));
+    await tx.update(rutinas).set({ nombre: formData.nombre }).where(eq(rutinas.id, idFormateado));
 
-    // 2. BORRADO EXPLÍCITO Y SEGURO (Previene ejercicios fantasma/huérfanos)
-    // Primero, buscamos los IDs de los días que pertenecen a esta rutina
-    const diasViejos = await tx.select({ id: rutinaDias.id })
-                               .from(rutinaDias)
-                               .where(eq(rutinaDias.rutinaId, idFormateado));
-    
-    const diasViejosIds = diasViejos.map(d => d.id);
+    const diasExistentes = await tx
+      .select({ id: rutinaDias.id })
+      .from(rutinaDias)
+      .where(eq(rutinaDias.rutinaId, idFormateado));
 
-    if (diasViejosIds.length > 0) {
-      // Buscamos los IDs de todos los ejercicios asociados a esos días
-      const ejViejos = await tx.select({ id: rutinaDiaEjercicios.id })
-                               .from(rutinaDiaEjercicios)
-                               .where(inArray(rutinaDiaEjercicios.rutinaDiaId, diasViejosIds));
-      
-      const ejViejosIds = ejViejos.map(e => e.id);
+    const idsExistentesSet = new Set(diasExistentes.map((d) => d.id));
+    const idsEnFormulario = new Set<number>();
 
-      if (ejViejosIds.length > 0) {
-        // Borramos primero las SERIES (El eslabón más profundo)
-        await tx.delete(rutinaDiaEjercicioSeries)
-                .where(inArray(rutinaDiaEjercicioSeries.rutinaDiaEjercicioId, ejViejosIds));
+    const syncEjerciciosDia = async (rutinaDiaDbId: number, ejercicios: FormRutinaDiaEjercicio[]) => {
+      const existentes = await tx
+        .select({ id: rutinaDiaEjercicios.id })
+        .from(rutinaDiaEjercicios)
+        .where(eq(rutinaDiaEjercicios.rutinaDiaId, rutinaDiaDbId));
+
+      const idsExistentesEj = new Set(existentes.map((e) => e.id));
+      const idsEnFormEj = new Set<number>();
+
+      for (let j = 0; j < ejercicios.length; j++) {
+        const ej = ejercicios[j];
+        if (!ej.ejercicio_id) continue;
+
+        const orden = j + 1;
+        let ejDbId: number;
+
+        if (
+          ej.rutinaDiaEjercicioId != null &&
+          idsExistentesEj.has(ej.rutinaDiaEjercicioId)
+        ) {
+          await tx
+            .update(rutinaDiaEjercicios)
+            .set({
+              ejercicioId: ej.ejercicio_id,
+              orden,
+            })
+            .where(eq(rutinaDiaEjercicios.id, ej.rutinaDiaEjercicioId));
+
+          ejDbId = ej.rutinaDiaEjercicioId;
+          idsEnFormEj.add(ejDbId);
+
+          await tx
+            .delete(rutinaDiaEjercicioSeries)
+            .where(eq(rutinaDiaEjercicioSeries.rutinaDiaEjercicioId, ejDbId));
+        } else {
+          const [nuevoEj] = await tx
+            .insert(rutinaDiaEjercicios)
+            .values({
+              rutinaDiaId: rutinaDiaDbId,
+              ejercicioId: ej.ejercicio_id,
+              orden,
+            })
+            .returning({ id: rutinaDiaEjercicios.id });
+          ejDbId = nuevoEj.id;
+          idsEnFormEj.add(ejDbId);
+        }
+
+        for (let k = 0; k < ej.series.length; k++) {
+          const serie = ej.series[k];
+          await tx.insert(rutinaDiaEjercicioSeries).values({
+            rutinaDiaEjercicioId: ejDbId,
+            serieOrden: k + 1,
+            repsObjetivo: serie.reps_objetivo?.toString() || "0",
+            pesoObjetivo: serie.peso_objetivo?.toString() || "0",
+          });
+        }
       }
 
-      // Borramos luego los EJERCICIOS
-      await tx.delete(rutinaDiaEjercicios)
-              .where(inArray(rutinaDiaEjercicios.rutinaDiaId, diasViejosIds));
-    }
+      for (const e of existentes) {
+        if (!idsEnFormEj.has(e.id)) {
+          await tx.delete(rutinaDiaEjercicios).where(eq(rutinaDiaEjercicios.id, e.id));
+        }
+      }
+    };
 
-    // Por último, borramos los DÍAS
-    await tx.delete(rutinaDias).where(eq(rutinaDias.rutinaId, idFormateado));
-
-    // 3. Reinsertar todo con la nueva estructura del formulario
     for (let i = 0; i < formData.dias.length; i++) {
       const dia = formData.dias[i];
-      const[nuevoDia] = await tx.insert(rutinaDias).values({
-        rutinaId: idFormateado,
-        nombre: dia.nombre,
-        orden: i + 1,
-      }).returning({ id: rutinaDias.id });
+      const orden = i + 1;
+      let diaDbId: number;
 
-      for (let j = 0; j < dia.ejercicios.length; j++) {
-        const ej = dia.ejercicios[j];
-        if (ej.ejercicio_id) {
-          const [nuevoEjercicio] = await tx.insert(rutinaDiaEjercicios).values({
-            rutinaDiaId: nuevoDia.id,
-            ejercicioId: ej.ejercicio_id,
-            orden: j + 1
-          }).returning({ id: rutinaDiaEjercicios.id });
+      if (dia.rutinaDiaId != null && idsExistentesSet.has(dia.rutinaDiaId)) {
+        await tx
+          .update(rutinaDias)
+          .set({ nombre: dia.nombre, orden })
+          .where(eq(rutinaDias.id, dia.rutinaDiaId));
+        diaDbId = dia.rutinaDiaId;
+        idsEnFormulario.add(dia.rutinaDiaId);
+      } else {
+        const [nuevoDia] = await tx
+          .insert(rutinaDias)
+          .values({
+            rutinaId: idFormateado,
+            nombre: dia.nombre,
+            orden,
+          })
+          .returning({ id: rutinaDias.id });
+        diaDbId = nuevoDia.id;
+      }
 
-          for (let k = 0; k < ej.series.length; k++) {
-            const serie = ej.series[k];
-            await tx.insert(rutinaDiaEjercicioSeries).values({
-              rutinaDiaEjercicioId: nuevoEjercicio.id,
-              serieOrden: k + 1,
-              repsObjetivo: serie.reps_objetivo?.toString() || "0",
-              pesoObjetivo: serie.peso_objetivo?.toString() || "0"
-            });
-          }
-        }
+      await syncEjerciciosDia(diaDbId, dia.ejercicios);
+    }
+
+    for (const d of diasExistentes) {
+      if (!idsEnFormulario.has(d.id)) {
+        await tx.delete(rutinaDias).where(eq(rutinaDias.id, d.id));
       }
     }
   });
@@ -193,8 +295,9 @@ export const getRutinaParaEditar = async (rutinaId: number): Promise<FormRutina>
     if (!diasMap.has(row.diaId)) {
       const nuevoDia = {
         id_temp: Math.random().toString(),
+        rutinaDiaId: row.diaId,
         nombre: row.diaNombre,
-        ejercicios:[]
+        ejercicios: [],
       };
       diasMap.set(row.diaId, nuevoDia);
       formRutina.dias.push(nuevoDia);
@@ -204,9 +307,10 @@ export const getRutinaParaEditar = async (rutinaId: number): Promise<FormRutina>
     if (row.rutinaDiaEjercicioId != null && !ejMap.has(row.rutinaDiaEjercicioId)) {
       const nuevoEj = {
         id_temp: Math.random().toString(),
+        rutinaDiaEjercicioId: row.rutinaDiaEjercicioId,
         ejercicio_id: row.ejercicioMaestroId ?? null,
         ejercicio_nombre: row.ejercicioNombre ?? undefined,
-        series:[]
+        series: [],
       };
       ejMap.set(row.rutinaDiaEjercicioId, nuevoEj);
       diasMap.get(row.diaId)!.ejercicios.push(nuevoEj);
