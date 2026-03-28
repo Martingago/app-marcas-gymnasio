@@ -1,74 +1,474 @@
-// src\services\entrenamientos\entrenamientosService.ts
-import db from "@/database";
-import { RutinaDia, RutinaDiaEjercicio } from "@/interfaces/rutina";
+import { db } from "@/database";
+import { entrenamientos } from "@/db/schema/entrenamientos";
+import { series } from "@/db/schema/series";
+import { rutinaDias } from "@/db/schema/rutina/rutinaDias";
+import { rutinas } from "@/db/schema/rutina/rutina";
+import { ejercicios } from "@/db/schema/ejercicios";
+import { eq, asc, desc, sql, and, gt, max } from "drizzle-orm";
 
-/**
- * Determina cuál es el siguiente día de la rutina que toca entrenar.
- * Devuelve un objeto RutinaDia o null si la rutina está vacía.
- */
-export const getProximoDiaSugerido = (rutinaId: number): RutinaDia | null => {
-  // 1. Buscamos el último entrenamiento hecho de esa rutina
-  const ultimoEntreno = db.getFirstSync<{ rutina_dia_id: number }>(
-    `
-    SELECT rutina_dia_id FROM entrenamientos 
-    WHERE rutina_dia_id IN (SELECT id FROM rutina_dias WHERE rutina_id = ?)
-    ORDER BY fecha DESC LIMIT 1
-  `,
-    [rutinaId],
-  );
+/** Ya hay un entreno sin finalizar en otro día de la misma rutina */
+export const ERROR_OTRO_DIA_ACTIVO = "ERROR_OTRO_DIA_ACTIVO";
 
-  if (!ultimoEntreno) {
-    // Si no hay entrenos previos, devolvemos el primer día de la rutina
-    return db.getFirstSync<RutinaDia>(
-      "SELECT * FROM rutina_dias WHERE rutina_id = ? ORDER BY orden ASC LIMIT 1",
-      [rutinaId],
-    );
+export function esErrorOtroDiaActivo(e: unknown): boolean {
+  return e instanceof Error && e.message === ERROR_OTRO_DIA_ACTIVO;
+}
+
+export const fechaLocalHoy = (): string => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+const isoAhora = () => new Date().toISOString();
+
+/** Si hubiera más de un entreno activo (legacy), deja solo el más reciente por id */
+async function consolidarEntrenosActivosDuplicados(rutinaId: number): Promise<void> {
+  const activos = await db
+    .select()
+    .from(entrenamientos)
+    .where(and(eq(entrenamientos.rutinaId, rutinaId), eq(entrenamientos.finalizado, 0)))
+    .orderBy(desc(entrenamientos.id));
+
+  if (activos.length <= 1) return;
+
+  const [, ...cerrar] = activos;
+  for (const row of cerrar) {
+    await db
+      .update(entrenamientos)
+      .set({ finalizado: 1, finalizadoEn: isoAhora() })
+      .where(eq(entrenamientos.id, row.id));
   }
+}
 
-  // 2. Buscamos el orden del último día realizado
-  const diaActual = db.getFirstSync<RutinaDia>(
-    "SELECT * FROM rutina_dias WHERE id = ?",
-    [ultimoEntreno.rutina_dia_id],
-  );
+export type EntrenoActivoInfo = {
+  id: number;
+  rutinaDiaId: number | null;
+  nombreDia: string | null;
+};
 
-  if (!diaActual) {
-    // fallback seguro (por ejemplo volver al primer día)
-    return db.getFirstSync<RutinaDia>(
-      "SELECT * FROM rutina_dias WHERE rutina_id = ? ORDER BY orden ASC LIMIT 1",
-      [rutinaId],
-    );
-  }
+/** Entreno abierto (no finalizado) para la rutina, como mucho uno */
+export const getEntrenoActivoRutina = async (rutinaId: number): Promise<EntrenoActivoInfo | null> => {
+  await consolidarEntrenosActivosDuplicados(rutinaId);
 
-  const proximoDia = db.getFirstSync<RutinaDia>(
-    "SELECT * FROM rutina_dias WHERE rutina_id = ? AND orden > ? ORDER BY orden ASC LIMIT 1",
-    [rutinaId, diaActual.orden],
-  );
+  const rows = await db
+    .select({
+      id: entrenamientos.id,
+      rutinaDiaId: entrenamientos.rutinaDiaId,
+      nombreSnapshot: entrenamientos.nombreSnapshot,
+      nombreDiaJoin: rutinaDias.nombre,
+    })
+    .from(entrenamientos)
+    .leftJoin(rutinaDias, eq(entrenamientos.rutinaDiaId, rutinaDias.id))
+    .where(and(eq(entrenamientos.rutinaId, rutinaId), eq(entrenamientos.finalizado, 0)))
+    .orderBy(desc(entrenamientos.id))
+    .limit(1);
 
-  // Si no hay siguiente (era el último día), volvemos al día 1
-  return (
-    proximoDia ||
-    db.getFirstSync<RutinaDia>(
-      "SELECT * FROM rutina_dias WHERE rutina_id = ? ORDER BY orden ASC LIMIT 1",
-      [rutinaId],
-    )
-  );
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    id: r.id,
+    rutinaDiaId: r.rutinaDiaId,
+    nombreDia: r.nombreDiaJoin ?? r.nombreSnapshot ?? null,
+  };
 };
 
 /**
- * Obtiene los ejercicios configurados para un día concreto de una rutina.
- * Esto servirá para "precargar" los inputs en la pantalla de entrenamiento.
+ * Una sola sesión activa por rutina. Si ya hay otra abierta en otro día, lanza ERROR_OTRO_DIA_ACTIVO.
  */
-export const getEjerciciosConfiguradosPorDia = (
-  rutinaDiaId: number,
-): RutinaDiaEjercicio[] => {
-  return db.getAllSync<RutinaDiaEjercicio>(
-    `
-    SELECT rde.*, e.nombre as ejercicio_nombre 
-    FROM rutina_dia_ejercicios rde
-    JOIN ejercicios e ON rde.ejercicio_id = e.id
-    WHERE rde.rutina_dia_id = ?
-    ORDER BY rde.orden ASC
-    `,
-    [rutinaDiaId],
-  );
+export const getOrCreateSesionActivaParaDia = async (rutinaDiaId: number): Promise<number> => {
+  const [dia] = await db
+    .select({ rutinaId: rutinaDias.rutinaId, nombre: rutinaDias.nombre })
+    .from(rutinaDias)
+    .where(eq(rutinaDias.id, rutinaDiaId));
+
+  if (!dia?.rutinaId) {
+    throw new Error("Día de rutina no encontrado");
+  }
+
+  await consolidarEntrenosActivosDuplicados(dia.rutinaId);
+
+  const [activo] = await db
+    .select()
+    .from(entrenamientos)
+    .where(and(eq(entrenamientos.rutinaId, dia.rutinaId), eq(entrenamientos.finalizado, 0)))
+    .orderBy(desc(entrenamientos.id))
+    .limit(1);
+
+  if (activo) {
+    if (activo.rutinaDiaId !== rutinaDiaId) {
+      throw new Error(ERROR_OTRO_DIA_ACTIVO);
+    }
+    return activo.id;
+  }
+
+  const [ins] = await db
+    .insert(entrenamientos)
+    .values({
+      fecha: fechaLocalHoy(),
+      rutinaDiaId,
+      rutinaId: dia.rutinaId,
+      nombreSnapshot: dia.nombre,
+      finalizado: 0,
+    })
+    .returning({ id: entrenamientos.id });
+
+  return ins.id;
+};
+
+export type EntrenamientoCabecera = {
+  id: number;
+  fecha: string;
+  finalizado: number;
+  finalizadoEn: string | null;
+  rutinaDiaId: number | null;
+  rutinaId: number | null;
+};
+
+export const getEntrenamientoCabecera = async (
+  entrenamientoId: number
+): Promise<EntrenamientoCabecera | null> => {
+  const rows = await db
+    .select({
+      id: entrenamientos.id,
+      fecha: entrenamientos.fecha,
+      finalizado: entrenamientos.finalizado,
+      finalizadoEn: entrenamientos.finalizadoEn,
+      rutinaDiaId: entrenamientos.rutinaDiaId,
+      rutinaId: entrenamientos.rutinaId,
+    })
+    .from(entrenamientos)
+    .where(eq(entrenamientos.id, entrenamientoId))
+    .limit(1);
+
+  return rows[0] ?? null;
+};
+
+export const finalizarEntrenamientoDia = async (entrenamientoId: number): Promise<void> => {
+  await db
+    .update(entrenamientos)
+    .set({ finalizado: 1, finalizadoEn: isoAhora() })
+    .where(and(eq(entrenamientos.id, entrenamientoId), eq(entrenamientos.finalizado, 0)));
+};
+
+export const eliminarEntrenamientoFinalizado = async (entrenamientoId: number): Promise<void> => {
+  const cab = await getEntrenamientoCabecera(entrenamientoId);
+  if (!cab || cab.finalizado !== 1) {
+    throw new Error("Solo se puede eliminar un entreno ya finalizado");
+  }
+  await db.delete(entrenamientos).where(eq(entrenamientos.id, entrenamientoId));
+};
+
+/** Borra la sesión en curso (no finalizada) y sus series. El día recomendado vuelve a basarse solo en entrenos finalizados. */
+export const cancelarEntrenamientoActivo = async (entrenamientoId: number): Promise<void> => {
+  const cab = await getEntrenamientoCabecera(entrenamientoId);
+  if (!cab || cab.finalizado !== 0) {
+    throw new Error("Solo se puede cancelar un entreno en curso");
+  }
+  await db.delete(entrenamientos).where(eq(entrenamientos.id, entrenamientoId));
+};
+
+async function assertEntrenoEditable(entrenamientoId: number): Promise<void> {
+  const [e] = await db
+    .select({ finalizado: entrenamientos.finalizado })
+    .from(entrenamientos)
+    .where(eq(entrenamientos.id, entrenamientoId))
+    .limit(1);
+  if (!e) throw new Error("Entreno no encontrado");
+  if (e.finalizado) throw new Error("SESION_FINALIZADA");
+}
+
+export type SerieRealizadaRow = {
+  id: number;
+  ejercicioId: number;
+  serieOrden: number;
+  repeticiones: number;
+  peso: number;
+};
+
+export const getSeriesDelEntrenamiento = async (
+  entrenamientoId: number
+): Promise<SerieRealizadaRow[]> => {
+  const rows = await db
+    .select({
+      id: series.id,
+      ejercicioId: series.ejercicioId,
+      serieOrden: series.serieOrden,
+      repeticiones: series.repeticiones,
+      peso: series.peso,
+    })
+    .from(series)
+    .where(eq(series.entrenamientoId, entrenamientoId))
+    .orderBy(asc(series.ejercicioId), asc(series.serieOrden));
+
+  return rows.map((r) => ({
+    id: r.id,
+    ejercicioId: r.ejercicioId!,
+    serieOrden: r.serieOrden,
+    repeticiones: r.repeticiones,
+    peso: r.peso,
+  }));
+};
+
+export const añadirSerieAlEntrenamiento = async (
+  entrenamientoId: number,
+  ejercicioId: number,
+  valores?: { repeticiones?: number; peso?: number; serieOrden?: number }
+): Promise<number> => {
+  await assertEntrenoEditable(entrenamientoId);
+
+  const reps = valores?.repeticiones ?? 10;
+  const peso = valores?.peso ?? 0;
+
+  if (valores?.serieOrden != null) {
+    const orden = valores.serieOrden;
+    const [existe] = await db
+      .select({ id: series.id })
+      .from(series)
+      .where(
+        and(
+          eq(series.entrenamientoId, entrenamientoId),
+          eq(series.ejercicioId, ejercicioId),
+          eq(series.serieOrden, orden)
+        )
+      )
+      .limit(1);
+    if (existe) return existe.id;
+
+    const [row] = await db
+      .insert(series)
+      .values({
+        entrenamientoId,
+        ejercicioId,
+        serieOrden: orden,
+        repeticiones: reps,
+        peso,
+        esDropset: 0,
+      })
+      .returning({ id: series.id });
+    return row.id;
+  }
+
+  const [agg] = await db
+    .select({ m: max(series.serieOrden) })
+    .from(series)
+    .where(and(eq(series.entrenamientoId, entrenamientoId), eq(series.ejercicioId, ejercicioId)));
+
+  const siguienteOrden = (Number(agg?.m) || 0) + 1;
+
+  const [row] = await db
+    .insert(series)
+    .values({
+      entrenamientoId,
+      ejercicioId,
+      serieOrden: siguienteOrden,
+      repeticiones: reps,
+      peso,
+      esDropset: 0,
+    })
+    .returning({ id: series.id });
+
+  return row.id;
+};
+
+export const actualizarSerieRealizada = async (
+  serieId: number,
+  repeticiones: number,
+  peso: number
+): Promise<void> => {
+  const [s] = await db
+    .select({ entrenamientoId: series.entrenamientoId })
+    .from(series)
+    .where(eq(series.id, serieId))
+    .limit(1);
+  if (!s?.entrenamientoId) return;
+  await assertEntrenoEditable(s.entrenamientoId);
+
+  await db
+    .update(series)
+    .set({ repeticiones, peso })
+    .where(eq(series.id, serieId));
+};
+
+export const eliminarSerieRealizada = async (serieId: number): Promise<void> => {
+  const [s] = await db
+    .select({ entrenamientoId: series.entrenamientoId })
+    .from(series)
+    .where(eq(series.id, serieId))
+    .limit(1);
+  if (!s?.entrenamientoId) return;
+  await assertEntrenoEditable(s.entrenamientoId);
+
+  await db.delete(series).where(eq(series.id, serieId));
+};
+
+export interface HistorialEjercicioFila {
+  id: number;
+  fecha: string;
+  rutinaNombre: string;
+  diaNombre: string | null;
+  reps: number;
+  peso: number;
+  serieOrden: number;
+}
+
+export const getHistorialPorEjercicio = async (
+  ejercicioId: number,
+  limite = 200
+): Promise<HistorialEjercicioFila[]> => {
+  const rows = await db
+    .select({
+      sid: series.id,
+      fecha: entrenamientos.fecha,
+      rutinaNombre: rutinas.nombre,
+      diaNombre: sql<string | null>`COALESCE(${rutinaDias.nombre}, ${entrenamientos.nombreSnapshot})`,
+      reps: series.repeticiones,
+      peso: series.peso,
+      serieOrden: series.serieOrden,
+    })
+    .from(series)
+    .innerJoin(entrenamientos, eq(series.entrenamientoId, entrenamientos.id))
+    .leftJoin(rutinaDias, eq(entrenamientos.rutinaDiaId, rutinaDias.id))
+    .leftJoin(
+      rutinas,
+      sql`${rutinas.id} = COALESCE(${entrenamientos.rutinaId}, ${rutinaDias.rutinaId})`
+    )
+    .where(and(eq(series.ejercicioId, ejercicioId), eq(entrenamientos.finalizado, 1)))
+    .orderBy(desc(entrenamientos.fecha), desc(entrenamientos.id), asc(series.serieOrden))
+    .limit(limite);
+
+  return rows.map((r) => ({
+    id: r.sid,
+    fecha: r.fecha,
+    rutinaNombre: r.rutinaNombre ?? "—",
+    diaNombre: r.diaNombre,
+    reps: r.reps,
+    peso: r.peso,
+    serieOrden: r.serieOrden,
+  }));
+};
+
+export interface SesionRutinaResumen {
+  entrenamientoId: number;
+  fecha: string;
+  diaNombre: string | null;
+  rutinaNombre: string;
+}
+
+export const getHistorialSesionesPorRutina = async (
+  rutinaId: number
+): Promise<SesionRutinaResumen[]> => {
+  const rows = await db
+    .select({
+      entrenamientoId: entrenamientos.id,
+      fecha: entrenamientos.fecha,
+      diaNombre: sql<string | null>`COALESCE(${rutinaDias.nombre}, ${entrenamientos.nombreSnapshot})`,
+      rutinaNombre: rutinas.nombre,
+    })
+    .from(entrenamientos)
+    .innerJoin(rutinas, eq(entrenamientos.rutinaId, rutinas.id))
+    .leftJoin(rutinaDias, eq(entrenamientos.rutinaDiaId, rutinaDias.id))
+    .where(and(eq(entrenamientos.rutinaId, rutinaId), eq(entrenamientos.finalizado, 1)))
+    .orderBy(
+      desc(sql`COALESCE(${entrenamientos.finalizadoEn}, ${entrenamientos.fecha})`),
+      desc(entrenamientos.id)
+    );
+
+  return rows.map((r) => ({
+    entrenamientoId: r.entrenamientoId,
+    fecha: r.fecha,
+    diaNombre: r.diaNombre,
+    rutinaNombre: r.rutinaNombre ?? "—",
+  }));
+};
+
+export const getDetalleSesion = async (entrenamientoId: number) => {
+  const cab = await db
+    .select({
+      id: entrenamientos.id,
+      fecha: entrenamientos.fecha,
+      diaNombre: sql<string | null>`COALESCE(${rutinaDias.nombre}, ${entrenamientos.nombreSnapshot})`,
+      rutinaNombre: rutinas.nombre,
+      finalizado: entrenamientos.finalizado,
+    })
+    .from(entrenamientos)
+    .leftJoin(rutinaDias, eq(entrenamientos.rutinaDiaId, rutinaDias.id))
+    .leftJoin(
+      rutinas,
+      sql`${rutinas.id} = COALESCE(${entrenamientos.rutinaId}, ${rutinaDias.rutinaId})`
+    )
+    .where(eq(entrenamientos.id, entrenamientoId))
+    .limit(1);
+
+  const sets = await db
+    .select({
+      ejercicioNombre: ejercicios.nombre,
+      reps: series.repeticiones,
+      peso: series.peso,
+      serieOrden: series.serieOrden,
+    })
+    .from(series)
+    .innerJoin(ejercicios, eq(series.ejercicioId, ejercicios.id))
+    .where(eq(series.entrenamientoId, entrenamientoId))
+    .orderBy(asc(ejercicios.id), asc(series.serieOrden));
+
+  return { cabecera: cab[0] ?? null, series: sets };
+};
+
+/**
+ * Siguiente día recomendado según el último entreno **finalizado** (orden lógico).
+ * Si entrenó el día 3, recomienda el 4; si no hay finalizados, el primero.
+ */
+export const getProximoDiaSugerido = async (rutinaId: number) => {
+  const ultimo = await db
+    .select({ rutinaDiaId: entrenamientos.rutinaDiaId })
+    .from(entrenamientos)
+    .innerJoin(rutinaDias, eq(entrenamientos.rutinaDiaId, rutinaDias.id))
+    .where(and(eq(rutinaDias.rutinaId, rutinaId), eq(entrenamientos.finalizado, 1)))
+    .orderBy(
+      desc(sql`COALESCE(${entrenamientos.finalizadoEn}, ${entrenamientos.fecha})`),
+      desc(entrenamientos.id)
+    )
+    .limit(1);
+
+  if (ultimo.length === 0 || !ultimo[0].rutinaDiaId) {
+    const [r] = await db
+      .select()
+      .from(rutinaDias)
+      .where(eq(rutinaDias.rutinaId, rutinaId))
+      .orderBy(asc(rutinaDias.orden))
+      .limit(1);
+    return r ?? null;
+  }
+
+  const lastId = ultimo[0].rutinaDiaId;
+  const [diaActual] = await db.select().from(rutinaDias).where(eq(rutinaDias.id, lastId)).limit(1);
+
+  if (!diaActual) {
+    const [r] = await db
+      .select()
+      .from(rutinaDias)
+      .where(eq(rutinaDias.rutinaId, rutinaId))
+      .orderBy(asc(rutinaDias.orden))
+      .limit(1);
+    return r ?? null;
+  }
+
+  const [proximo] = await db
+    .select()
+    .from(rutinaDias)
+    .where(and(eq(rutinaDias.rutinaId, rutinaId), gt(rutinaDias.orden, diaActual.orden)))
+    .orderBy(asc(rutinaDias.orden))
+    .limit(1);
+
+  if (proximo) return proximo;
+
+  const [primero] = await db
+    .select()
+    .from(rutinaDias)
+    .where(eq(rutinaDias.rutinaId, rutinaId))
+    .orderBy(asc(rutinaDias.orden))
+    .limit(1);
+  return primero ?? null;
 };

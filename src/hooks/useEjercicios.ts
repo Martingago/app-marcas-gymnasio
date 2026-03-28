@@ -1,27 +1,37 @@
 import { useState, useEffect } from 'react';
-import { Ejercicio } from '@/interfaces/ejercicio';
-import { getEjercicios } from '@/services/ejercicios/ejerciciosService';
+import { Ejercicio, CrearEjercicioDTO, EditarEjercicioDTO } from '@/interfaces/ejercicio';
+import { getEjercicios, addEjercicio, updateEjercicio, deleteEjercicio } from '@/services/ejercicios/ejerciciosService';
 
-export const useEjercicios = (categoriaIdFiltro: number | null) => {
+export const useEjercicios = (categoriaIdFiltro: number | null, searchQuery: string ="") => {
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const[loading, setLoading] = useState<boolean>(true);
 
   const cargarEjercicios = async () => {
     setLoading(true);
-    try {
-      const data = await getEjercicios(categoriaIdFiltro);
-      setEjercicios(data);
-    } catch (error) {
-      console.error("Error cargando ejercicios:", error);
-    } finally {
-      setLoading(false);
-    }
+    const data = await getEjercicios(categoriaIdFiltro, searchQuery);
+    setEjercicios(data);
+    setLoading(false);
   };
 
-  // Cada vez que cambie el filtro de categoría, se vuelve a ejecutar la consulta
-  useEffect(() => {
+   useEffect(() => {
     cargarEjercicios();
-  }, [categoriaIdFiltro]);
+  }, [categoriaIdFiltro, searchQuery]);
 
-  return { ejercicios, loading, recargarEjercicios: cargarEjercicios };
+  // NUEVAS FUNCIONES PARA EL CRUD
+  const agregar = async (data: CrearEjercicioDTO) => {
+    const nuevo = await addEjercicio(data);
+    setEjercicios(prev => [...prev, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+  };
+
+  const editar = async (data: EditarEjercicioDTO) => {
+    const editado = await updateEjercicio(data);
+    setEjercicios(prev => prev.map(e => e.id === editado.id ? editado : e).sort((a, b) => a.nombre.localeCompare(b.nombre)));
+  };
+
+  const eliminar = async (id: number) => {
+    await deleteEjercicio(id);
+    setEjercicios(prev => prev.filter(e => e.id !== id));
+  };
+
+  return { ejercicios, loading, agregar, editar, eliminar };
 };

@@ -6,6 +6,8 @@ export const series = sqliteTable("series", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   entrenamientoId: integer("entrenamiento_id").references(() => entrenamientos.id, { onDelete: "cascade" }),
   ejercicioId: integer("ejercicio_id").references(() => ejercicios.id, { onDelete: "cascade" }),
+  /** Orden de la serie dentro del mismo ejercicio en ese entreno */
+  serieOrden: integer("serie_orden").notNull().default(1),
   peso: real("peso").notNull(),
   repeticiones: integer("repeticiones").notNull(),
   esDropset: integer("es_dropset").default(0), // 0: false, 1: true
