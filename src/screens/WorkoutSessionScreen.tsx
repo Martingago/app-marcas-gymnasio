@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 
+import { resetStackToRoutineDayPicker } from "@/navigation/resetToRoutineDayPicker";
 import { RootStackParamList } from "@/navigation/types";
 import { getEjerciciosConSeriesParaEntreno } from "@/services/rutina/rutinasService";
 import {
@@ -341,7 +342,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
     try {
       await finalizarEntrenamientoDia(entrenamientoId);
       setModalFinalizar(false);
-      navigation.navigate("RoutineDayPicker", { rutinaId, nombreRutina });
+      resetStackToRoutineDayPicker(navigation, rutinaId, nombreRutina);
     } catch (e) {
       console.error(e);
       Alert.alert("Error", "No se pudo finalizar el día.");

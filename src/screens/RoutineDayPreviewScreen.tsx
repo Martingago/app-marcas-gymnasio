@@ -5,6 +5,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { RootStackParamList } from "@/navigation/types";
+import { getEntrenoActivoRutina } from "@/services/entrenamientos/entrenamientosService";
 import { getEjerciciosConSeriesParaEntreno } from "@/services/rutina/rutinasService";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RoutineDayPreview">;
@@ -13,18 +14,25 @@ export default function RoutineDayPreviewScreen({ navigation, route }: Props) {
   const { rutinaId, rutinaDiaId, nombreRutina, nombreDia } = route.params;
   const [loading, setLoading] = useState(true);
   const [ejercicios, setEjercicios] = useState<Awaited<ReturnType<typeof getEjerciciosConSeriesParaEntreno>>>([]);
+  const [entrenoActivo, setEntrenoActivo] = useState<Awaited<
+    ReturnType<typeof getEntrenoActivoRutina>
+  > | null>(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getEjerciciosConSeriesParaEntreno(rutinaDiaId);
+      const [data, activo] = await Promise.all([
+        getEjerciciosConSeriesParaEntreno(rutinaDiaId),
+        getEntrenoActivoRutina(rutinaId),
+      ]);
       setEjercicios(data);
+      setEntrenoActivo(activo);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [rutinaDiaId]);
+  }, [rutinaDiaId, rutinaId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -69,8 +77,33 @@ export default function RoutineDayPreviewScreen({ navigation, route }: Props) {
       </ScrollView>
 
       <View className="p-4 border-t border-slate-800 bg-slate-900">
+        {entrenoActivo &&
+        entrenoActivo.rutinaDiaId != null &&
+        entrenoActivo.rutinaDiaId !== rutinaDiaId ? (
+          <View className="bg-amber-900/35 border border-amber-600/45 rounded-xl p-3 mb-4">
+            <Text className="text-amber-200 font-bold text-sm mb-1">No puedes iniciar este día ahora</Text>
+            <Text className="text-amber-100/90 text-sm leading-5">
+              Ya tienes un día de entreno en curso («{entrenoActivo.nombreDia ?? "—"}»). Finalízalo antes de abrir
+              otra sesión. Arriba puedes seguir viendo lo planificado para este día.
+            </Text>
+          </View>
+        ) : null}
+
         <TouchableOpacity
-          className="py-4 bg-blue-600 rounded-xl items-center border border-blue-500/40"
+          className={`py-4 rounded-xl items-center border ${
+            entrenoActivo &&
+            entrenoActivo.rutinaDiaId != null &&
+            entrenoActivo.rutinaDiaId !== rutinaDiaId
+              ? "bg-slate-700 border-slate-600 opacity-60"
+              : "bg-blue-600 border-blue-500/40"
+          }`}
+          disabled={
+            !!(
+              entrenoActivo &&
+              entrenoActivo.rutinaDiaId != null &&
+              entrenoActivo.rutinaDiaId !== rutinaDiaId
+            )
+          }
           onPress={() =>
             navigation.navigate("WorkoutSession", {
               rutinaId,
@@ -81,10 +114,16 @@ export default function RoutineDayPreviewScreen({ navigation, route }: Props) {
           }
           activeOpacity={0.9}
         >
-          <Text className="text-white font-bold text-lg">Iniciar día de entreno</Text>
+          <Text className="text-white font-bold text-lg">
+            {entrenoActivo?.rutinaDiaId === rutinaDiaId
+              ? "Continuar día de entreno"
+              : "Iniciar día de entreno"}
+          </Text>
         </TouchableOpacity>
         <Text className="text-slate-500 text-xs text-center mt-3 leading-4">
-          Solo entonces se abre la sesión donde podrás anotar lo que hagas (guardado automático).
+          {entrenoActivo?.rutinaDiaId === rutinaDiaId
+            ? "Vuelves a la sesión donde se guardan tus series (sigue abierta hasta que pulses finalizar)."
+            : "Solo entonces se abre la sesión donde podrás anotar lo que hagas (guardado automático)."}
         </Text>
       </View>
     </SafeAreaView>

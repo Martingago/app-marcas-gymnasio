@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -90,22 +89,14 @@ export default function RoutineDayPickerScreen({ navigation, route }: Props) {
                       ? "bg-emerald-900/40 border-emerald-500/50"
                       : "bg-slate-800 border-slate-700"
                 }`}
-                onPress={async () => {
-                  const activo = await getEntrenoActivoRutina(rutinaId);
-                  if (activo && activo.rutinaDiaId != null && activo.rutinaDiaId !== item.id) {
-                    Alert.alert(
-                      "Otro día en curso",
-                      `Ya tienes un entreno abierto en «${activo.nombreDia ?? "otro día"}». Ábrelo desde aquí o finalízalo antes de cambiar de día.`
-                    );
-                    return;
-                  }
+                onPress={() =>
                   navigation.navigate("RoutineDayPreview", {
                     rutinaId,
                     rutinaDiaId: item.id,
                     nombreRutina,
                     nombreDia: item.nombre,
-                  });
-                }}
+                  })
+                }
               >
                 <View className="flex-row justify-between items-center flex-wrap gap-2">
                   <Text className="text-white text-lg font-bold flex-shrink">{item.nombre}</Text>
