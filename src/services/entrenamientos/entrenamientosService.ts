@@ -160,6 +160,15 @@ export const eliminarEntrenamientoFinalizado = async (entrenamientoId: number): 
   await db.delete(entrenamientos).where(eq(entrenamientos.id, entrenamientoId));
 };
 
+/** Borra la sesión en curso (no finalizada) y sus series. El día recomendado vuelve a basarse solo en entrenos finalizados. */
+export const cancelarEntrenamientoActivo = async (entrenamientoId: number): Promise<void> => {
+  const cab = await getEntrenamientoCabecera(entrenamientoId);
+  if (!cab || cab.finalizado !== 0) {
+    throw new Error("Solo se puede cancelar un entreno en curso");
+  }
+  await db.delete(entrenamientos).where(eq(entrenamientos.id, entrenamientoId));
+};
+
 async function assertEntrenoEditable(entrenamientoId: number): Promise<void> {
   const [e] = await db
     .select({ finalizado: entrenamientos.finalizado })

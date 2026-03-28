@@ -23,6 +23,7 @@ import {
   eliminarEntrenamientoFinalizado,
   esErrorOtroDiaActivo,
   fechaLocalHoy,
+  cancelarEntrenamientoActivo,
   finalizarEntrenamientoDia,
   getEntrenamientoCabecera,
   getOrCreateSesionActivaParaDia,
@@ -240,6 +241,8 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
   const [ejercicios, setEjercicios] = useState<EjercicioUi[]>([]);
   const [modalFinalizar, setModalFinalizar] = useState(false);
   const [finalizando, setFinalizando] = useState(false);
+  const [modalCancelar, setModalCancelar] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -348,6 +351,21 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
       Alert.alert("Error", "No se pudo finalizar el día.");
     } finally {
       setFinalizando(false);
+    }
+  };
+
+  const confirmarCancelarEntreno = async () => {
+    if (!entrenamientoId) return;
+    setCancelando(true);
+    try {
+      await cancelarEntrenamientoActivo(entrenamientoId);
+      setModalCancelar(false);
+      resetStackToRoutineDayPicker(navigation, rutinaId, nombreRutina);
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Error", "No se pudo cancelar el entreno.");
+    } finally {
+      setCancelando(false);
     }
   };
 
@@ -508,13 +526,22 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
 
       <View className="p-4 border-t border-slate-800 bg-slate-900 gap-3">
         {editable ? (
-          <TouchableOpacity
-            className="py-4 bg-amber-600 rounded-xl items-center border border-amber-500/50"
-            onPress={() => setModalFinalizar(true)}
-            activeOpacity={0.9}
-          >
-            <Text className="text-slate-900 font-bold text-base">Finalizar día de entreno</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              className="py-4 bg-amber-600 rounded-xl items-center border border-amber-500/50"
+              onPress={() => setModalFinalizar(true)}
+              activeOpacity={0.9}
+            >
+              <Text className="text-slate-900 font-bold text-base">Finalizar día de entreno</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="py-3 bg-slate-800 rounded-xl items-center border border-slate-600"
+              onPress={() => setModalCancelar(true)}
+              activeOpacity={0.9}
+            >
+              <Text className="text-slate-300 font-semibold text-base">Cancelar entreno</Text>
+            </TouchableOpacity>
+          </>
         ) : (
           <TouchableOpacity
             className="py-4 bg-red-900/40 rounded-xl items-center border border-red-600/40"
@@ -547,6 +574,34 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
                   <ActivityIndicator color="#0f172a" />
                 ) : (
                   <Text className="text-slate-900 text-center font-bold">Confirmar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={modalCancelar} transparent animationType="fade" onRequestClose={() => setModalCancelar(false)}>
+        <View className="flex-1 bg-black/70 justify-center px-6">
+          <View className="bg-slate-800 rounded-2xl p-5 border border-slate-600">
+            <Text className="text-white text-xl font-bold mb-2">¿Cancelar este entreno?</Text>
+            <Text className="text-slate-400 text-sm leading-5 mb-6">
+              Se borrará por completo esta sesión en curso (todas las series anotadas) y no quedará en el historial. El día
+              recomendado volverá a calcularse según el último día que hayas finalizado antes.
+            </Text>
+            <View className="flex-row gap-3">
+              <TouchableOpacity className="flex-1 py-3 rounded-xl bg-slate-700" onPress={() => setModalCancelar(false)}>
+                <Text className="text-slate-200 text-center font-semibold">No</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 py-3 rounded-xl bg-red-700"
+                disabled={cancelando}
+                onPress={() => void confirmarCancelarEntreno()}
+              >
+                {cancelando ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text className="text-white text-center font-bold">Sí, cancelar</Text>
                 )}
               </TouchableOpacity>
             </View>

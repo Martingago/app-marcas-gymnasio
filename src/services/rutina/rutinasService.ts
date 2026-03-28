@@ -4,7 +4,7 @@ import { db } from "@/database";
 import { rutinas } from "@/db/schema/rutina/rutina";
 
 import { rutinaDiaEjercicios } from "@/db/schema/rutina/rutinaDiaEjercicios";
-import { eq, sql, asc } from "drizzle-orm";
+import { eq, sql, asc, count } from "drizzle-orm";
 
 import { rutinaDias } from "@/db/schema";
 import { ejercicios } from "@/db/schema/ejercicios";
@@ -52,15 +52,17 @@ export const guardarRutinaCompleta = async (formData: FormRutina) => {
   });
 };
 
-// Obtener todas las rutinas con su conteo de días
+// Conteo real de filas en rutina_dias por rutina
 export const getRutinasConDetalle = async () => {
   return await db
     .select({
       id: rutinas.id,
       nombre: rutinas.nombre,
-      totalDias: sql<number>`(SELECT COUNT(*) FROM ${rutinaDias} WHERE ${rutinaDias.rutinaId} = ${rutinas.id})`
+      totalDias: count(rutinaDias.id),
     })
-    .from(rutinas);
+    .from(rutinas)
+    .leftJoin(rutinaDias, eq(rutinaDias.rutinaId, rutinas.id))
+    .groupBy(rutinas.id, rutinas.nombre);
 };
 
 // Obtener los días y ejercicios de una rutina especifica (para el desplegable)

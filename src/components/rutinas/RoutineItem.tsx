@@ -81,7 +81,9 @@ export default function RoutineItem({ rutina, onOptionsPress, onStartWorkout, on
         >
           <View className="flex-1">
             <Text className="text-white text-xl font-bold">{rutina.nombre}</Text>
-            <Text className="text-slate-400 mt-1">{rutina.totalDias} días de entrenamiento</Text>
+            <Text className="text-slate-400 mt-1">
+              {rutina.totalDias === 1 ? "1 día de entrenamiento" : `${rutina.totalDias} días de entrenamiento`}
+            </Text>
           </View>
           <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={24} color="#64748b" />
         </TouchableOpacity>
