@@ -31,15 +31,25 @@ export const useRutinas = (navigation: any) => {
     }
   };
 
-  const guardarOEditarRutina = async (rutina: FormRutina, rutinaIdEditando?: number) => {
+  const guardarOEditarRutina = async (
+    rutina: FormRutina,
+    rutinaIdEditando?: number,
+    options?: { onSuccess?: () => void }
+  ) => {
     setIsLoading(true);
     try {
       if (rutinaIdEditando) {
         await editarRutinaCompleta(rutinaIdEditando, rutina);
-        Alert.alert("¡Éxito!", "Rutina actualizada correctamente",[{ text: "OK", onPress: () => navigation.goBack() }]);
+        options?.onSuccess?.();
+        Alert.alert("¡Éxito!", "Rutina actualizada correctamente", [
+          { text: "OK", onPress: () => navigation.goBack() },
+        ]);
       } else {
         await guardarRutinaCompleta(rutina);
-        Alert.alert("¡Éxito!", "Rutina creada correctamente",[{ text: "OK", onPress: () => navigation.goBack() }]);
+        options?.onSuccess?.();
+        Alert.alert("¡Éxito!", "Rutina creada correctamente", [
+          { text: "OK", onPress: () => navigation.goBack() },
+        ]);
       }
     } catch (error) {
       console.error(error);
