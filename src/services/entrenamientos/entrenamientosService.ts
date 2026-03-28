@@ -305,6 +305,7 @@ export const eliminarSerieRealizada = async (serieId: number): Promise<void> => 
 
 export interface HistorialEjercicioFila {
   id: number;
+  entrenamientoId: number;
   fecha: string;
   rutinaNombre: string;
   diaNombre: string | null;
@@ -320,6 +321,7 @@ export const getHistorialPorEjercicio = async (
   const rows = await db
     .select({
       sid: series.id,
+      entrenamientoId: entrenamientos.id,
       fecha: entrenamientos.fecha,
       rutinaNombre: rutinas.nombre,
       diaNombre: sql<string | null>`COALESCE(${rutinaDias.nombre}, ${entrenamientos.nombreSnapshot})`,
@@ -340,6 +342,7 @@ export const getHistorialPorEjercicio = async (
 
   return rows.map((r) => ({
     id: r.sid,
+    entrenamientoId: r.entrenamientoId,
     fecha: r.fecha,
     rutinaNombre: r.rutinaNombre ?? "—",
     diaNombre: r.diaNombre,
@@ -347,6 +350,14 @@ export const getHistorialPorEjercicio = async (
     peso: r.peso,
     serieOrden: r.serieOrden,
   }));
+};
+
+export type DetalleSesionSerie = {
+  ejercicioId: number;
+  ejercicioNombre: string;
+  reps: number;
+  peso: number;
+  serieOrden: number;
 };
 
 export interface SesionRutinaResumen {
@@ -403,6 +414,7 @@ export const getDetalleSesion = async (entrenamientoId: number) => {
 
   const sets = await db
     .select({
+      ejercicioId: ejercicios.id,
       ejercicioNombre: ejercicios.nombre,
       reps: series.repeticiones,
       peso: series.peso,
@@ -413,7 +425,10 @@ export const getDetalleSesion = async (entrenamientoId: number) => {
     .where(eq(series.entrenamientoId, entrenamientoId))
     .orderBy(asc(ejercicios.id), asc(series.serieOrden));
 
-  return { cabecera: cab[0] ?? null, series: sets };
+  return {
+    cabecera: cab[0] ?? null,
+    series: sets as DetalleSesionSerie[],
+  };
 };
 
 /**
