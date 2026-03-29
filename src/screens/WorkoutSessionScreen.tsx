@@ -6,13 +6,13 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 
+import AppDialog, { AppDialogAction } from "@/components/ui/AppDialog";
 import { resetStackToRoutineDayPicker } from "@/navigation/resetToRoutineDayPicker";
 import { RootStackParamList } from "@/navigation/types";
 import { getEjerciciosConSeriesParaEntreno } from "@/services/rutina/rutinasService";
@@ -66,11 +66,13 @@ function SerieRowEditor({
   objetivoMeta,
   editable,
   onRemoved,
+  onAskDelete,
 }: {
   row: SerieRealizadaRow;
   objetivoMeta?: { reps: string; peso: string } | null;
   editable: boolean;
   onRemoved: () => void;
+  onAskDelete: () => void;
 }) {
   const [reps, setReps] = useState(String(row.repeticiones));
   const [peso, setPeso] = useState(String(row.peso));
@@ -119,22 +121,7 @@ function SerieRowEditor({
 
   const confirmarBorrar = () => {
     if (!editable) return;
-    Alert.alert("Quitar serie", "¿Eliminar esta serie del entreno?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await eliminarSerieRealizada(row.id);
-            onRemoved();
-          } catch (e) {
-            console.error(e);
-            Alert.alert("No se puede editar", "Este día ya está finalizado.");
-          }
-        },
-      },
-    ]);
+    onAskDelete();
   };
 
   const rTry = parseInt(String(reps).trim(), 10);
@@ -243,6 +230,13 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
   const [finalizando, setFinalizando] = useState(false);
   const [modalCancelar, setModalCancelar] = useState(false);
   const [cancelando, setCancelando] = useState(false);
+  const [dialogApp, setDialogApp] = useState<{
+    title: string;
+    message: string;
+    actions: AppDialogAction[];
+  } | null>(null);
+  const [serieDeleteId, setSerieDeleteId] = useState<number | null>(null);
+  const [modalEliminarHistorial, setModalEliminarHistorial] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -260,11 +254,20 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
         entId = await getOrCreateSesionActivaParaDia(rutinaDiaId);
       } catch (e) {
         if (esErrorOtroDiaActivo(e)) {
-          Alert.alert(
-            "Otro día en curso",
-            "Ya tienes un entreno sin finalizar en otro día de esta rutina.",
-            [{ text: "OK", onPress: () => navigation.goBack() }]
-          );
+          setDialogApp({
+            title: "Otro día en curso",
+            message: "Ya tienes un entreno sin finalizar en otro día de esta rutina.",
+            actions: [
+              {
+                label: "OK",
+                variant: "primary",
+                onPress: () => {
+                  setDialogApp(null);
+                  navigation.goBack();
+                },
+              },
+            ],
+          });
           return;
         }
         throw e;
@@ -288,7 +291,11 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
       setEjercicios(merged);
     } catch (e) {
       console.error(e);
-      Alert.alert("Error", "No se pudo cargar el entreno.");
+      setDialogApp({
+        title: "Error",
+        message: "No se pudo cargar el entreno.",
+        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
+      });
     } finally {
       setLoading(false);
     }
@@ -321,7 +328,11 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
       await cargar();
     } catch (e) {
       console.error(e);
-      Alert.alert("Error", "No se pudo registrar la serie.");
+      setDialogApp({
+        title: "Error",
+        message: "No se pudo registrar la serie.",
+        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
+      });
     }
   };
 
@@ -335,7 +346,11 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
       await cargar();
     } catch (e) {
       console.error(e);
-      Alert.alert("Error", "No se pudo añadir la serie.");
+      setDialogApp({
+        title: "Error",
+        message: "No se pudo añadir la serie.",
+        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
+      });
     }
   };
 
@@ -348,7 +363,11 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
       resetStackToRoutineDayPicker(navigation, rutinaId, nombreRutina);
     } catch (e) {
       console.error(e);
-      Alert.alert("Error", "No se pudo finalizar el día.");
+      setDialogApp({
+        title: "Error",
+        message: "No se pudo finalizar el día.",
+        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
+      });
     } finally {
       setFinalizando(false);
     }
@@ -363,34 +382,31 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
       resetStackToRoutineDayPicker(navigation, rutinaId, nombreRutina);
     } catch (e) {
       console.error(e);
-      Alert.alert("Error", "No se pudo cancelar el entreno.");
+      setDialogApp({
+        title: "Error",
+        message: "No se pudo cancelar el entreno.",
+        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
+      });
     } finally {
       setCancelando(false);
     }
   };
 
-  const confirmarEliminarEntreno = () => {
+  const ejecutarEliminarEntrenoHistorial = async () => {
     if (!entrenamientoId) return;
-    Alert.alert(
-      "Eliminar entreno",
-      "Se borrará este registro del historial (todas las series). ¿Continuar?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await eliminarEntrenamientoFinalizado(entrenamientoId);
-              navigation.goBack();
-            } catch (e) {
-              console.error(e);
-              Alert.alert("Error", "Solo se pueden eliminar entrenos ya finalizados.");
-            }
-          },
-        },
-      ]
-    );
+    try {
+      await eliminarEntrenamientoFinalizado(entrenamientoId);
+      setModalEliminarHistorial(false);
+      navigation.goBack();
+    } catch (e) {
+      console.error(e);
+      setModalEliminarHistorial(false);
+      setDialogApp({
+        title: "Error",
+        message: "Solo se pueden eliminar entrenos ya finalizados.",
+        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
+      });
+    }
   };
 
   if (loading) {
@@ -481,6 +497,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
                           objetivoMeta={meta}
                           editable={editable}
                           onRemoved={() => void cargar()}
+                          onAskDelete={() => setSerieDeleteId(real.id)}
                         />
                       </>
                     )}
@@ -505,6 +522,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
                       objetivoMeta={meta}
                       editable={editable}
                       onRemoved={() => void cargar()}
+                      onAskDelete={() => setSerieDeleteId(row.id)}
                     />
                   </View>
                 );
@@ -545,7 +563,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
         ) : (
           <TouchableOpacity
             className="py-4 bg-red-900/40 rounded-xl items-center border border-red-600/40"
-            onPress={confirmarEliminarEntreno}
+            onPress={() => setModalEliminarHistorial(true)}
             activeOpacity={0.9}
           >
             <Text className="text-red-300 font-bold text-base">Eliminar este entreno del historial</Text>
@@ -575,6 +593,89 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
                 ) : (
                   <Text className="text-slate-900 text-center font-bold">Confirmar</Text>
                 )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <AppDialog
+        visible={dialogApp != null}
+        title={dialogApp?.title ?? ""}
+        message={dialogApp?.message ?? ""}
+        onRequestClose={() => setDialogApp(null)}
+        actions={dialogApp?.actions ?? []}
+      />
+
+      <Modal
+        visible={serieDeleteId != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSerieDeleteId(null)}
+      >
+        <View className="flex-1 bg-black/70 justify-center px-6">
+          <View className="bg-slate-800 rounded-2xl p-5 border border-slate-600">
+            <Text className="text-white text-xl font-bold mb-2">Quitar serie</Text>
+            <Text className="text-slate-400 text-sm leading-5 mb-6">
+              ¿Eliminar esta serie del entreno? Esta acción no se puede deshacer.
+            </Text>
+            <View className="flex-row gap-3">
+              <TouchableOpacity className="flex-1 py-3 rounded-xl bg-slate-700" onPress={() => setSerieDeleteId(null)}>
+                <Text className="text-slate-200 text-center font-semibold">Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 py-3 rounded-xl bg-red-700"
+                onPress={() => {
+                  const id = serieDeleteId;
+                  if (id == null) return;
+                  void (async () => {
+                    try {
+                      await eliminarSerieRealizada(id);
+                      setSerieDeleteId(null);
+                      await cargar();
+                    } catch (err) {
+                      console.error(err);
+                      setSerieDeleteId(null);
+                      setDialogApp({
+                        title: "No se puede editar",
+                        message: "Este día ya está finalizado o no se pudo eliminar la serie.",
+                        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
+                      });
+                    }
+                  })();
+                }}
+              >
+                <Text className="text-white text-center font-bold">Eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={modalEliminarHistorial}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalEliminarHistorial(false)}
+      >
+        <View className="flex-1 bg-black/70 justify-center px-6">
+          <View className="bg-slate-800 rounded-2xl p-5 border border-slate-600">
+            <Text className="text-white text-xl font-bold mb-2">Eliminar entreno</Text>
+            <Text className="text-slate-400 text-sm leading-5 mb-6">
+              Se borrará este registro del historial (todas las series). ¿Continuar?
+            </Text>
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                className="flex-1 py-3 rounded-xl bg-slate-700"
+                onPress={() => setModalEliminarHistorial(false)}
+              >
+                <Text className="text-slate-200 text-center font-semibold">Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 py-3 rounded-xl bg-red-700"
+                onPress={() => void ejecutarEliminarEntrenoHistorial()}
+              >
+                <Text className="text-white text-center font-bold">Eliminar</Text>
               </TouchableOpacity>
             </View>
           </View>
