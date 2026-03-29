@@ -1,5 +1,7 @@
 /** Agrupa sesiones por semana (lunes como inicio) para gráficas de rutina */
 
+import { formatoFechaDMY } from "@/lib/fechaFormato";
+
 export type SemanaEntrenos = {
   /** yyyy-mm-dd del lunes */
   semanaInicio: string;
@@ -40,14 +42,9 @@ export function entrenosPorSemana(fechas: string[]): SemanaEntrenos[] {
     map.set(key, (map.get(key) ?? 0) + 1);
   }
   const keys = [...map.keys()].sort();
-  return keys.map((k) => {
-    const d = parseIso(k);
-    return {
-      semanaInicio: k,
-      label: d
-        ? d.toLocaleDateString(undefined, { day: "numeric", month: "short" })
-        : k,
-      entrenos: map.get(k) ?? 0,
-    };
-  });
+  return keys.map((k) => ({
+    semanaInicio: k,
+    label: formatoFechaDMY(k),
+    entrenos: map.get(k) ?? 0,
+  }));
 }

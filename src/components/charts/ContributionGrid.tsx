@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 
+import { formatoFechaDMY, formatoFechaTituloExtendido } from "@/lib/fechaFormato";
 import type { SesionRutinaResumen } from "@/services/entrenamientos/entrenamientosService";
 
 const GAP = 2;
@@ -51,17 +52,6 @@ function toIso(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-function fechaLegible(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return iso;
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
 }
 
 function colorHex(count: number): string {
@@ -238,10 +228,12 @@ export default function ContributionGrid({
             <View className="w-12 h-1 bg-slate-600 rounded-full self-center mt-3 mb-2" />
             <ScrollView className="px-5 pb-8 pt-2" keyboardShouldPersistTaps="handled">
               <Text className="text-slate-500 text-xs font-bold uppercase mb-1">Día</Text>
-              <Text className="text-white text-xl font-bold capitalize mb-1">
-                {diaSeleccionado ? fechaLegible(diaSeleccionado) : ""}
+              <Text className="text-white text-xl font-bold mb-1">
+                {diaSeleccionado ? formatoFechaTituloExtendido(diaSeleccionado) : ""}
               </Text>
-              <Text className="text-slate-500 text-sm mb-5">{diaSeleccionado}</Text>
+              <Text className="text-slate-500 text-sm mb-5">
+                {diaSeleccionado ? formatoFechaDMY(diaSeleccionado) : ""}
+              </Text>
 
               {listaDiaSeleccionado.length === 0 ? (
                 <Text className="text-slate-500 text-base leading-6">

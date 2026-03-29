@@ -5,22 +5,13 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { RootStackParamList } from "@/navigation/types";
+import { formatoFechaDMY, formatoFechaTituloExtendido } from "@/lib/fechaFormato";
 import {
   getDetalleSesion,
   type DetalleSesionSerie,
 } from "@/services/entrenamientos/entrenamientosService";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SessionDetail">;
-
-function fechaLegible(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return iso;
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-}
 
 function agruparSeriesPorEjercicio(items: DetalleSesionSerie[]) {
   const ordenIds: number[] = [];
@@ -97,8 +88,8 @@ export default function SessionDetailScreen({ route, navigation }: Props) {
         {cabecera ? (
           <>
             <Text className="text-slate-400 text-xs font-bold uppercase">Entreno</Text>
-            <Text className="text-white text-2xl font-bold mb-1 capitalize">{fechaLegible(cabecera.fecha)}</Text>
-            <Text className="text-slate-500 text-sm mb-1">{cabecera.fecha}</Text>
+            <Text className="text-white text-2xl font-bold mb-1">{formatoFechaTituloExtendido(cabecera.fecha)}</Text>
+            <Text className="text-slate-500 text-sm mb-1">{formatoFechaDMY(cabecera.fecha)}</Text>
             <Text className="text-emerald-400 font-semibold">{cabecera.rutinaNombre ?? "—"}</Text>
             <Text className="text-slate-400 mb-6">{cabecera.diaNombre ?? ""}</Text>
           </>
