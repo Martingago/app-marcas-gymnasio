@@ -90,14 +90,23 @@ export default function RoutineDayPickerScreen({ navigation, route }: Props) {
                       ? "bg-emerald-900/40 border-emerald-500/50"
                       : "bg-slate-800 border-slate-700"
                 }`}
-                onPress={() =>
-                  navigation.navigate("RoutineDayPreview", {
-                    rutinaId,
-                    rutinaDiaId: item.id,
-                    nombreRutina,
-                    nombreDia: item.nombre,
-                  })
-                }
+                onPress={() => {
+                  if (esEnCurso) {
+                    navigation.navigate("WorkoutSession", {
+                      rutinaId,
+                      rutinaDiaId: item.id,
+                      nombreRutina,
+                      nombreDia: item.nombre,
+                    });
+                  } else {
+                    navigation.navigate("RoutineDayPreview", {
+                      rutinaId,
+                      rutinaDiaId: item.id,
+                      nombreRutina,
+                      nombreDia: item.nombre,
+                    });
+                  }
+                }}
               >
                 <View className="flex-row justify-between items-center flex-wrap gap-2">
                   <Text className="text-white text-lg font-bold flex-shrink">{item.nombre}</Text>

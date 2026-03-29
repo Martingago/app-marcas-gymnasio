@@ -10,7 +10,7 @@ export default function HomeScreen({ navigation }: Props) {
   return (
     <SafeAreaView edges={["top", "left", "right"]} className="flex-1 bg-slate-900">
       <View className="flex-1 px-6 justify-center">
-        <Text className="text-white text-4xl font-bold mb-2 text-center">Mi Gym App</Text>
+        <Text className="text-white text-4xl font-bold mb-2 text-center">NextPR</Text>
         <Text className="text-slate-500 text-center text-sm mb-10">Rutinas, entrenos y seguimiento</Text>
 
         <View className="gap-5">
