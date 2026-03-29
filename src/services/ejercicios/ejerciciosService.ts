@@ -2,6 +2,9 @@ import { db } from "@/database";
 import { ejercicios } from "@/db/schema/ejercicios";
 import { categorias } from "@/db/schema/categorias";
 import { ejercicioCategorias } from "@/db/schema/ejercicioCategorias";
+import { series } from "@/db/schema/series";
+import { rutinaDiaEjercicios } from "@/db/schema/rutina/rutinaDiaEjercicios";
+import { rutinaDiaEjercicioSeries } from "@/db/schema/rutina/rutinaDiaEjerciciosSeries";
 import { eq, asc, and, like, inArray } from "drizzle-orm";
 import { categoriaRaizYDescendientes } from "@/lib/categoriasArbol";
 import { CrearEjercicioDTO, EditarEjercicioDTO, Ejercicio } from "@/interfaces/ejercicio";
@@ -133,8 +136,27 @@ export const updateEjercicio = async (data: EditarEjercicioDTO): Promise<Ejercic
   return full;
 };
 
+/**
+ * Borra el ejercicio y todas las filas que lo referencian.
+ * (Sin PRAGMA foreign_keys=ON los ON DELETE CASCADE de SQLite no se aplican; esto es explícito y seguro.)
+ */
 export const deleteEjercicio = async (id: number): Promise<void> => {
-  await db.delete(ejercicios).where(eq(ejercicios.id, id));
+  await db.transaction(async (tx) => {
+    await tx.delete(ejercicioCategorias).where(eq(ejercicioCategorias.ejercicioId, id));
+    await tx.delete(series).where(eq(series.ejercicioId, id));
+    const huecos = await tx
+      .select({ pk: rutinaDiaEjercicios.id })
+      .from(rutinaDiaEjercicios)
+      .where(eq(rutinaDiaEjercicios.ejercicioId, id));
+    const huecoIds = huecos.map((h) => h.pk);
+    if (huecoIds.length > 0) {
+      await tx
+        .delete(rutinaDiaEjercicioSeries)
+        .where(inArray(rutinaDiaEjercicioSeries.rutinaDiaEjercicioId, huecoIds));
+    }
+    await tx.delete(rutinaDiaEjercicios).where(eq(rutinaDiaEjercicios.ejercicioId, id));
+    await tx.delete(ejercicios).where(eq(ejercicios.id, id));
+  });
 };
 
 export const getEjercicioById = async (id: number): Promise<Ejercicio | null> => {
