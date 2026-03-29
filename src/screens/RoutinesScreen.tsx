@@ -144,6 +144,7 @@ export default function RoutinesScreen({ navigation }: Props) {
         onClose={() => setOptionsVisible(false)}
         onEdit={handleEdit}
         onDelete={handleDeleteOption}
+        nombreRutina={selectedRutina?.nombre}
       />
 
       <RoutineDeleteModal
