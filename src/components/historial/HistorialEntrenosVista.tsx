@@ -12,6 +12,7 @@ import {
 
 import ContributionGrid from "@/components/charts/ContributionGrid";
 import SimpleLineChart from "@/components/charts/SimpleLineChart";
+import { formatoFechaDMY, formatoFechaTituloExtendido } from "@/lib/fechaFormato";
 import { entrenosPorSemana } from "@/lib/rutinaProgreso";
 import {
   eliminarEntrenamientoFinalizado,
@@ -119,7 +120,8 @@ export default function HistorialEntrenosVista({
                 onPress={() => onNavigateToSession(item.entrenamientoId)}
                 activeOpacity={0.85}
               >
-                <Text className="text-white font-bold text-lg">{item.fecha}</Text>
+                <Text className="text-white font-bold text-base leading-snug">{formatoFechaTituloExtendido(item.fecha)}</Text>
+                <Text className="text-slate-500 text-xs mt-1">{formatoFechaDMY(item.fecha)}</Text>
                 {mostrarRutinaEnLista ? (
                   <>
                     <Text className="text-emerald-400/90 text-sm font-semibold mt-1">{item.rutinaNombre}</Text>
@@ -171,7 +173,7 @@ export default function HistorialEntrenosVista({
           <View className="bg-slate-800 rounded-2xl p-5 border border-slate-600">
             <Text className="text-white text-xl font-bold mb-2">¿Eliminar este entreno del historial?</Text>
             <Text className="text-slate-400 text-sm leading-5 mb-2">
-              Se borrará el registro del {borrar?.fecha}
+              Se borrará el registro del {borrar ? formatoFechaDMY(borrar.fecha) : ""}
               {borrar?.diaNombre ? ` (${borrar.diaNombre})` : ""}
               {mostrarRutinaEnLista && borrar ? ` · ${borrar.rutinaNombre}` : ""} y todas las series guardadas. Esta
               acción no se puede deshacer.

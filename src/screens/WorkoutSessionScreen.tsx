@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 
+import { formatoFechaDMY, formatoFechaTituloExtendido } from "@/lib/fechaFormato";
 import AppDialog, { AppDialogAction } from "@/components/ui/AppDialog";
 import { resetStackToRoutineDayPicker } from "@/navigation/resetToRoutineDayPicker";
 import { RootStackParamList } from "@/navigation/types";
@@ -430,16 +431,6 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
     );
   }
 
-  const fechaLegible = (() => {
-    const [y, m, d] = fechaSesion.split("-").map(Number);
-    if (!y || !m || !d) return fechaSesion;
-    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    });
-  })();
-
   const editable = !finalizado;
 
   return (
@@ -448,7 +439,8 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
         <View className="bg-slate-800/90 border border-slate-600 rounded-2xl p-4 mb-5">
           <Text className="text-slate-400 text-xs font-bold uppercase mb-1">{nombreRutina}</Text>
           <Text className="text-white text-2xl font-bold mb-1">{nombreDia}</Text>
-          <Text className="text-slate-500 text-sm capitalize mb-3">{fechaLegible}</Text>
+          <Text className="text-slate-400 text-sm mb-0.5">{formatoFechaTituloExtendido(fechaSesion)}</Text>
+          <Text className="text-slate-500 text-xs mb-3">{formatoFechaDMY(fechaSesion)}</Text>
           {finalizado ? (
             <View className="bg-slate-700/80 px-3 py-2 rounded-lg border border-slate-600 mb-2">
               <Text className="text-slate-300 text-sm font-semibold">Día finalizado · solo lectura</Text>

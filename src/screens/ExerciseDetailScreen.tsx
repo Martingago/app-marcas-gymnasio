@@ -20,6 +20,7 @@ import {
   getHistorialPorEjercicio,
   HistorialEjercicioFila,
 } from "@/services/entrenamientos/entrenamientosService";
+import { formatoFechaDMY, formatoFechaTituloExtendido } from "@/lib/fechaFormato";
 import {
   etiquetaMetrica,
   MetricaEvolucion,
@@ -37,16 +38,6 @@ type BloqueEntreno = {
   diaNombre: string | null;
   series: HistorialEjercicioFila[];
 };
-
-function fechaLegible(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return iso;
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-}
 
 function agruparPorEntreno(rows: HistorialEjercicioFila[]): BloqueEntreno[] {
   const orden: number[] = [];
@@ -99,14 +90,7 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
     () => puntosEvo.map((p) => valorMetrica(p, metrica)),
     [puntosEvo, metrica]
   );
-  const etiquetasGrafica = useMemo(
-    () =>
-      puntosEvo.map((p) => {
-        const [, m, d] = p.fecha.split("-");
-        return m && d ? `${d}/${m}` : p.fecha;
-      }),
-    [puntosEvo]
-  );
+  const etiquetasGrafica = useMemo(() => puntosEvo.map((p) => formatoFechaDMY(p.fecha)), [puntosEvo]);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -197,8 +181,8 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
               renderItem={({ item }) => (
                 <View className="bg-slate-800/95 rounded-2xl mb-4 border border-slate-700 overflow-hidden">
                   <View className="px-4 py-3 border-b border-slate-700 bg-slate-800">
-                    <Text className="text-slate-500 text-xs">{item.fecha}</Text>
-                    <Text className="text-white text-base font-bold capitalize mt-0.5">{fechaLegible(item.fecha)}</Text>
+                    <Text className="text-white text-base font-bold leading-snug">{formatoFechaTituloExtendido(item.fecha)}</Text>
+                    <Text className="text-slate-500 text-xs mt-1">{formatoFechaDMY(item.fecha)}</Text>
                     <Text className="text-emerald-400 font-semibold text-sm mt-2">{item.rutinaNombre}</Text>
                     <Text className="text-slate-400 text-sm">{item.diaNombre ?? ""}</Text>
                   </View>
@@ -281,8 +265,8 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
                         className="flex-row items-center px-3 py-3 border-b border-slate-700/80 active:bg-slate-700/40"
                       >
                         <View className="flex-1 pr-2">
-                          <Text className="text-slate-200 text-sm font-medium">{p.fecha}</Text>
-                          <Text className="text-slate-500 text-xs capitalize mt-0.5">{fechaLegible(p.fecha)}</Text>
+                          <Text className="text-slate-200 text-sm font-medium">{formatoFechaDMY(p.fecha)}</Text>
+                          <Text className="text-slate-500 text-xs mt-0.5">{formatoFechaTituloExtendido(p.fecha)}</Text>
                         </View>
                         <Text className="text-emerald-400 font-mono text-sm w-24 text-right">
                           {formatMetricaValor(metrica, valorMetrica(p, metrica))}
@@ -305,8 +289,8 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
             {puntoModal ? (
               <ScrollView className="px-5 pb-8 pt-2" keyboardShouldPersistTaps="handled">
                 <Text className="text-slate-500 text-xs font-bold uppercase mb-1">Sesión</Text>
-                <Text className="text-white text-xl font-bold capitalize">{fechaLegible(puntoModal.fecha)}</Text>
-                <Text className="text-slate-500 text-sm mb-1">{puntoModal.fecha}</Text>
+                <Text className="text-white text-xl font-bold">{formatoFechaTituloExtendido(puntoModal.fecha)}</Text>
+                <Text className="text-slate-500 text-sm mb-1">{formatoFechaDMY(puntoModal.fecha)}</Text>
                 <Text className="text-emerald-400 font-semibold text-sm mt-2">{cabeceraSesionModal.rutinaNombre}</Text>
                 <Text className="text-slate-400 text-sm mb-4">{cabeceraSesionModal.diaNombre ?? ""}</Text>
 
