@@ -111,25 +111,29 @@ export function DeleteModal({ visible, onClose, onConfirm, ejercicio }: DeleteMo
 type FormModalProps = {
   visible: boolean;
   onClose: () => void;
-  onSave: (data: { id?: number; nombre: string; categoria_id: number | null }) => void;
+  onSave: (data: { id?: number; nombre: string; categoria_ids: number[] }) => void;
   categorias: Categoria[];
   ejercicioAEditar: Ejercicio | null;
 };
 
 export function FormModal({ visible, onClose, onSave, categorias, ejercicioAEditar }: FormModalProps) {
   const [nombre, setNombre] = useState("");
-  const [categoriaId, setCategoriaId] = useState<number | null>(null);
+  const [categoriaIds, setCategoriaIds] = useState<number[]>([]);
 
   useEffect(() => {
     if (visible) {
       setNombre(ejercicioAEditar?.nombre ?? "");
-      setCategoriaId(ejercicioAEditar?.categoria_id ?? null);
+      setCategoriaIds(ejercicioAEditar?.categoria_ids ? [...ejercicioAEditar.categoria_ids] : []);
     }
   }, [visible, ejercicioAEditar]);
 
+  const toggleCategoria = (id: number) => {
+    setCategoriaIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
   const handleSave = () => {
     if (!nombre.trim()) return;
-    onSave({ id: ejercicioAEditar?.id, nombre: nombre.trim(), categoria_id: categoriaId });
+    onSave({ id: ejercicioAEditar?.id, nombre: nombre.trim(), categoria_ids: categoriaIds });
     onClose();
   };
 
@@ -151,7 +155,9 @@ export function FormModal({ visible, onClose, onSave, categorias, ejercicioAEdit
           >
             <Text className="text-white text-xl font-bold mb-1">{titulo}</Text>
             <Text className="text-slate-500 text-sm mb-5">
-              {ejercicioAEditar ? "Actualiza nombre o categoría." : "Añade un ejercicio a tu catálogo."}
+              {ejercicioAEditar
+                ? "Actualiza nombre o categorías."
+                : "Añade un ejercicio. Puedes marcar varias categorías (p. ej. Brazo + Tríceps)."}
             </Text>
 
             <Text className="text-slate-500 text-xs font-bold uppercase mb-2">Nombre</Text>
@@ -166,24 +172,29 @@ export function FormModal({ visible, onClose, onSave, categorias, ejercicioAEdit
             />
             </View>
 
-            <Text className="text-slate-500 text-xs font-bold uppercase mb-2">Categoría (opcional)</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6" contentContainerStyle={{ gap: 8 }}>
+            <Text className="text-slate-500 text-xs font-bold uppercase mb-2">Categorías (opcional, varias)</Text>
+            <View className="flex-row flex-wrap gap-2 mb-6">
               {categorias.map((cat) => {
-                const active = categoriaId === cat.id;
+                const active = categoriaIds.includes(cat.id);
+                const esHija = cat.parentId != null;
                 return (
                   <TouchableOpacity
                     key={cat.id}
-                    className={`px-4 py-3 rounded-xl border ${
+                    className={`px-3 py-2.5 rounded-xl border ${
                       active ? "bg-blue-600 border-blue-500" : "bg-slate-900/80 border-slate-700"
-                    }`}
-                    onPress={() => setCategoriaId(active ? null : cat.id)}
+                    } ${!active && esHija ? "border-l-2 border-l-violet-500/60" : ""}`}
+                    onPress={() => toggleCategoria(cat.id)}
                     activeOpacity={0.85}
                   >
-                    <Text className={active ? "text-white font-semibold" : "text-slate-300"}>{cat.nombre}</Text>
+                    <Text
+                      className={`${active ? "text-white font-semibold" : esHija ? "text-slate-400 text-sm" : "text-slate-300"}`}
+                    >
+                      {esHija ? `· ${cat.nombre}` : cat.nombre}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+            </View>
 
             <View className="flex-row gap-3 mt-2">
               <TouchableOpacity className="flex-1 py-3.5 rounded-xl bg-slate-700" onPress={onClose} activeOpacity={0.85}>

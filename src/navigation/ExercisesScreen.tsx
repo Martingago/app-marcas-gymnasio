@@ -46,11 +46,11 @@ export default function ExercisesScreen({ navigation }: Props) {
     setFormVisible(true);
   };
 
-  const handleSaveForm = async (data: { id?: number; nombre: string; categoria_id: number | null }) => {
+  const handleSaveForm = async (data: { id?: number; nombre: string; categoria_ids: number[] }) => {
     if (ejercicioSeleccionado != null && data.id != null) {
-      await editar({ id: data.id, nombre: data.nombre, categoria_id: data.categoria_id });
+      await editar({ id: data.id, nombre: data.nombre, categoria_ids: data.categoria_ids });
     } else {
-      await agregar({ nombre: data.nombre, categoria_id: data.categoria_id });
+      await agregar({ nombre: data.nombre, categoria_ids: data.categoria_ids });
     }
   };
 
@@ -64,7 +64,10 @@ export default function ExercisesScreen({ navigation }: Props) {
   return (
     <SafeAreaView edges={["bottom", "left", "right"]} className="flex-1 bg-slate-900">
       <View className="flex-1 px-4 pt-2">
-        <Text className="text-slate-600 text-[10px] font-bold uppercase mb-2">Filtrar por categoría</Text>
+        <Text className="text-slate-600 text-[10px] font-bold uppercase mb-1">Filtrar por categoría</Text>
+        <Text className="text-slate-500 text-[10px] mb-2 leading-4">
+          Brazo o Pierna agrupan bíceps, tríceps, cuádriceps…; el filtro incluye subcategorías.
+        </Text>
         <View className="flex-row items-stretch gap-2 mb-5">
           <ScrollView
             horizontal
@@ -90,19 +93,20 @@ export default function ExercisesScreen({ navigation }: Props) {
 
             {categorias.map((cat) => {
               const active = categoriaActiva === cat.id;
+              const esHija = cat.parentId != null;
               return (
                 <Pressable
                   key={cat.id}
                   onPress={() => setCategoriaActiva(cat.id)}
-                  className={`px-4 py-2.5 rounded-xl border max-w-[148px] ${
+                  className={`px-4 py-2.5 rounded-xl border max-w-[160px] ${
                     active ? "bg-blue-600 border-blue-500" : "bg-slate-800 border-slate-700 active:opacity-90"
-                  }`}
+                  } ${!active && esHija ? "border-l-2 border-l-violet-500/50" : ""}`}
                 >
                   <Text
-                    className={`text-sm font-semibold ${active ? "text-white" : "text-slate-300"}`}
+                    className={`text-sm font-semibold ${active ? "text-white" : esHija ? "text-slate-400" : "text-slate-300"}`}
                     numberOfLines={1}
                   >
-                    {cat.nombre}
+                    {esHija ? `· ${cat.nombre}` : cat.nombre}
                   </Text>
                 </Pressable>
               );

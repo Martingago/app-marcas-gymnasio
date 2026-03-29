@@ -8,9 +8,15 @@ export const useEjercicios = (categoriaIdFiltro: number | null, searchQuery: str
 
   const cargarEjercicios = async () => {
     setLoading(true);
-    const data = await getEjercicios(categoriaIdFiltro, searchQuery);
-    setEjercicios(data);
-    setLoading(false);
+    try {
+      const data = await getEjercicios(categoriaIdFiltro, searchQuery);
+      setEjercicios(data);
+    } catch (e) {
+      console.error("useEjercicios: fallo al cargar", e);
+      setEjercicios([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
    useEffect(() => {
