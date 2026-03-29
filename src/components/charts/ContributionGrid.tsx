@@ -30,6 +30,12 @@ type Props = {
   onAbrirSesion: (entrenamientoId: number) => void;
   /** Textos del modal cuando se muestran entrenos de todas las rutinas */
   vistaGlobal?: boolean;
+  /** Sustituye el texto bajo el título del calendario (p. ej. vista ejercicio) */
+  descripcionCalendario?: string;
+  /** Modal: día sin sesiones en la lista (si no se pasa, se usa el mensaje de rutina/global) */
+  textoSinSesionesEnDia?: string;
+  /** Modal: sufijo tras «N entreno(s)» (p. ej. « con este ejercicio»). Si no se pasa, depende de vistaGlobal */
+  sufijoLineaConteoSesiones?: string;
 };
 
 function startOfWeekMonday(d: Date): Date {
@@ -82,6 +88,9 @@ export default function ContributionGrid({
   sesiones,
   onAbrirSesion,
   vistaGlobal = false,
+  descripcionCalendario,
+  textoSinSesionesEnDia,
+  sufijoLineaConteoSesiones,
 }: Props) {
   const { width: screenW } = useWindowDimensions();
   const [measuredW, setMeasuredW] = useState(0);
@@ -179,7 +188,8 @@ export default function ContributionGrid({
   return (
     <View style={{ alignSelf: "stretch" }} onLayout={onRootLayout}>
       <Text className="text-slate-500 text-xs mb-3">
-        Últimas {WEEKS} semanas · Toca un día para ver el detalle
+        {descripcionCalendario ??
+          `Últimas ${WEEKS} semanas · Toca un día para ver el detalle`}
       </Text>
 
       <View className="flex-row items-start" style={{ alignSelf: "stretch" }}>
@@ -237,15 +247,20 @@ export default function ContributionGrid({
 
               {listaDiaSeleccionado.length === 0 ? (
                 <Text className="text-slate-500 text-base leading-6">
-                  {vistaGlobal
-                    ? "No hay entrenos registrados en esta fecha."
-                    : "No hay entrenos registrados con esta rutina en esta fecha (día de descanso o entreno con otra rutina)."}
+                  {textoSinSesionesEnDia ??
+                    (vistaGlobal
+                      ? "No hay entrenos registrados en esta fecha."
+                      : "No hay entrenos registrados con esta rutina en esta fecha (día de descanso o entreno con otra rutina).")}
                 </Text>
               ) : (
                 <>
                   <Text className="text-slate-400 text-sm mb-3">
                     {listaDiaSeleccionado.length} entreno{listaDiaSeleccionado.length === 1 ? "" : "s"}
-                    {vistaGlobal ? "" : " con esta rutina"}
+                    {sufijoLineaConteoSesiones != null
+                      ? sufijoLineaConteoSesiones
+                      : vistaGlobal
+                        ? ""
+                        : " con esta rutina"}
                   </Text>
                   {listaDiaSeleccionado.map((s) => (
                     <TouchableOpacity

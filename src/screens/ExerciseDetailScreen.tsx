@@ -12,13 +12,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 
 import SimpleLineChart from "@/components/charts/SimpleLineChart";
+import ContributionGrid from "@/components/charts/ContributionGrid";
 import { RootStackParamList } from "@/navigation/types";
 import { getEjercicioById } from "@/services/ejercicios/ejerciciosService";
 import {
   getHistorialPorEjercicio,
   HistorialEjercicioFila,
+  type SesionRutinaResumen,
 } from "@/services/entrenamientos/entrenamientosService";
 import { formatoFechaDMY, formatoFechaTituloExtendido } from "@/lib/fechaFormato";
 import {
@@ -83,8 +86,20 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("historial");
   const [metrica, setMetrica] = useState<MetricaEvolucion>("maxPeso");
   const [puntoModal, setPuntoModal] = useState<PuntoEvolucionEjercicio | null>(null);
+  const [expandedBloques, setExpandedBloques] = useState<Record<number, boolean>>({});
 
   const bloques = useMemo(() => agruparPorEntreno(historial), [historial]);
+  const fechasParaGrid = useMemo(() => bloques.map((b) => b.fecha), [bloques]);
+  const sesionesParaGrid = useMemo<SesionRutinaResumen[]>(
+    () =>
+      bloques.map((b) => ({
+        entrenamientoId: b.entrenamientoId,
+        fecha: b.fecha,
+        diaNombre: b.diaNombre,
+        rutinaNombre: b.rutinaNombre,
+      })),
+    [bloques]
+  );
   const puntosEvo = useMemo(() => puntosEvolucionPorSesion(historial), [historial]);
   const valoresGrafica = useMemo(
     () => puntosEvo.map((p) => valorMetrica(p, metrica)),
@@ -174,36 +189,91 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
                 </Text>
               }
               ListHeaderComponent={
-                <Text className="text-slate-600 text-xs leading-5 mb-4">
-                  Cada bloque es una sesión finalizada. Las series están agrupadas por entreno.
-                </Text>
-              }
-              renderItem={({ item }) => (
-                <View className="bg-slate-800/95 rounded-2xl mb-4 border border-slate-700 overflow-hidden">
-                  <View className="px-4 py-3 border-b border-slate-700 bg-slate-800">
-                    <Text className="text-white text-base font-bold leading-snug">{formatoFechaTituloExtendido(item.fecha)}</Text>
-                    <Text className="text-slate-500 text-xs mt-1">{formatoFechaDMY(item.fecha)}</Text>
-                    <Text className="text-emerald-400 font-semibold text-sm mt-2">{item.rutinaNombre}</Text>
-                    <Text className="text-slate-400 text-sm">{item.diaNombre ?? ""}</Text>
-                  </View>
-                  <View className="p-3 gap-2">
-                    {item.series.map((s) => (
-                      <View
-                        key={s.id}
-                        className="bg-slate-900/70 px-3 py-2.5 rounded-xl border border-slate-700/80 flex-row justify-between items-center"
-                      >
-                        <Text className="text-slate-400 text-sm">
-                          Serie {s.serieOrden}
-                          {s.esDropset ? " · dropset" : ""}
-                        </Text>
-                        <Text className="text-slate-100 font-mono text-sm">
-                          {s.reps} reps @ {s.peso} kg
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
+                <View className="mb-5">
+                  <ContributionGrid
+                    fechasConEntreno={fechasParaGrid}
+                    sesiones={sesionesParaGrid}
+                    onAbrirSesion={(entrenamientoId) =>
+                      navigation.navigate("SessionDetail", { entrenamientoId })
+                    }
+                    vistaGlobal={false}
+                    descripcionCalendario="Últimas 18 semanas · Días en los que registraste este ejercicio. Toca un día para ver las sesiones de ese día."
+                    textoSinSesionesEnDia="No hay sesiones con este ejercicio en esta fecha."
+                    sufijoLineaConteoSesiones=" con este ejercicio"
+                  />
+                  <Text className="text-slate-600 text-xs leading-5 mt-4">
+                    Cada bloque es una sesión finalizada. Toca la cabecera para desplegar u ocultar las series.
+                  </Text>
                 </View>
-              )}
+              }
+              renderItem={({ item }) => {
+                const expanded = expandedBloques[item.entrenamientoId] === true;
+                const n = item.series.length;
+                const maxPeso = n > 0 ? Math.max(...item.series.map((s) => s.peso)) : 0;
+                const vol = item.series.reduce((a, s) => a + s.reps * s.peso, 0);
+                return (
+                  <View className="bg-slate-800/95 rounded-2xl mb-4 border border-slate-700 overflow-hidden">
+                    <Pressable
+                      onPress={() =>
+                        setExpandedBloques((m) => ({
+                          ...m,
+                          [item.entrenamientoId]: !m[item.entrenamientoId],
+                        }))
+                      }
+                      className="flex-row items-start justify-between gap-2 px-4 py-3 border-b border-slate-700 bg-slate-800 active:opacity-90"
+                    >
+                      <View className="flex-1 min-w-0 pr-1">
+                        <Text className="text-white text-base font-bold leading-snug">
+                          {formatoFechaTituloExtendido(item.fecha)}
+                        </Text>
+                        <Text className="text-slate-500 text-xs mt-1">{formatoFechaDMY(item.fecha)}</Text>
+                        <Text className="text-emerald-400 font-semibold text-sm mt-2">{item.rutinaNombre}</Text>
+                        <Text className="text-slate-400 text-sm">{item.diaNombre ?? ""}</Text>
+                        {!expanded ? (
+                          <Text className="text-slate-500 text-xs mt-2">
+                            {n} {n === 1 ? "serie" : "series"} · máx. {maxPeso.toFixed(1)} kg · vol. {vol.toFixed(0)}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Ionicons
+                        name={expanded ? "chevron-up" : "chevron-down"}
+                        size={22}
+                        color="#94a3b8"
+                        style={{ marginTop: 2 }}
+                      />
+                    </Pressable>
+                    {expanded ? (
+                      <View className="p-3 gap-2">
+                        {item.series.map((s) => (
+                          <View
+                            key={s.id}
+                            className="bg-slate-900/70 px-3 py-2.5 rounded-xl border border-slate-700/80 flex-row justify-between items-center"
+                          >
+                            <Text className="text-slate-400 text-sm">
+                              Serie {s.serieOrden}
+                              {s.esDropset ? " · dropset" : ""}
+                            </Text>
+                            <Text className="text-slate-100 font-mono text-sm">
+                              {s.reps} reps @ {s.peso} kg
+                            </Text>
+                          </View>
+                        ))}
+                        <TouchableOpacity
+                          className="py-2.5 mt-1"
+                          onPress={() =>
+                            navigation.navigate("SessionDetail", { entrenamientoId: item.entrenamientoId })
+                          }
+                          activeOpacity={0.85}
+                        >
+                          <Text className="text-blue-400 text-sm font-semibold text-center">
+                            Ver entreno completo ›
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              }}
             />
           ) : (
             <ScrollView
