@@ -6,11 +6,11 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Pressable,
   Modal,
 } from "react-native";
 
+import AppDialog, { AppDialogAction } from "@/components/ui/AppDialog";
 import ExerciseSelectorModal from "@/components/modals/ExerciseSelectorModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -72,7 +72,7 @@ function rutinaFingerprint(r: FormRutina): string {
 type Props = NativeStackScreenProps<RootStackParamList, "CreateRoutine">;
 
 export default function CreateRoutineScreen({ navigation, route }: Props) {
-  const { guardarOEditarRutina, isLoading } = useRutinas(navigation);
+  const { guardarOEditarRutina, isLoading } = useRutinas();
 
   const rutinaIdEditando = route.params?.rutinaId;
   const insets = useSafeAreaInsets();
@@ -101,6 +101,12 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
     ejId: string;
   } | null>(null);
 
+  const [dialogoApp, setDialogoApp] = useState<{
+    title: string;
+    message: string;
+    actions: AppDialogAction[];
+  } | null>(null);
+
   useEffect(() => {
     if (!rutinaIdEditando) {
       setBaselineFingerprint(rutinaFingerprint(createInitialRutina()));
@@ -117,7 +123,11 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
           setActiveDiaIndex(0);
         } catch (error) {
           console.error("Error al cargar la rutina para editar:", error);
-          Alert.alert("Error", "No se pudo cargar la información de la rutina.");
+          setDialogoApp({
+            title: "Error",
+            message: "No se pudo cargar la información de la rutina.",
+            actions: [{ label: "Entendido", onPress: () => setDialogoApp(null) }],
+          });
         } finally {
           setIsCargandoEdicion(false);
         }
@@ -161,25 +171,32 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
   };
 
   const validarYGuardar = () => {
+    const aviso = (title: string, message: string) =>
+      setDialogoApp({
+        title,
+        message,
+        actions: [{ label: "Entendido", onPress: () => setDialogoApp(null) }],
+      });
+
     if (!rutina.nombre.trim()) {
-      Alert.alert("Faltan datos", "Por favor, introduce un nombre para la rutina.");
+      aviso("Faltan datos", "Por favor, introduce un nombre para la rutina.");
       return;
     }
 
     if (rutina.dias.length === 0) {
-      Alert.alert("Faltan datos", "La rutina debe tener al menos un día de entrenamiento.");
+      aviso("Faltan datos", "La rutina debe tener al menos un día de entrenamiento.");
       return;
     }
 
     for (const dia of rutina.dias) {
       if (dia.ejercicios.length === 0) {
-        Alert.alert("Faltan datos", `El ${dia.nombre} debe tener al menos un ejercicio.`);
+        aviso("Faltan datos", `El ${dia.nombre} debe tener al menos un ejercicio.`);
         return;
       }
 
       const tieneHuecosVacios = dia.ejercicios.some((ej) => ej.ejercicio_id === null);
       if (tieneHuecosVacios) {
-        Alert.alert("Faltan datos", `Has dejado huecos de ejercicios sin seleccionar en ${dia.nombre}.`);
+        aviso("Faltan datos", `Has dejado huecos de ejercicios sin seleccionar en ${dia.nombre}.`);
         return;
       }
     }
@@ -188,6 +205,29 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
       onSuccess: () => {
         omitirAvisoCambiosRef.current = true;
       },
+      onSaved: () =>
+        setDialogoApp({
+          title: rutinaIdEditando ? "Rutina actualizada" : "Rutina creada",
+          message: rutinaIdEditando
+            ? "Los cambios se han guardado correctamente."
+            : "Tu rutina se ha guardado correctamente.",
+          actions: [
+            {
+              label: "OK",
+              variant: "primary",
+              onPress: () => {
+                setDialogoApp(null);
+                navigation.goBack();
+              },
+            },
+          ],
+        }),
+      onError: (msg) =>
+        setDialogoApp({
+          title: "Error",
+          message: msg,
+          actions: [{ label: "Entendido", onPress: () => setDialogoApp(null) }],
+        }),
     });
   };
 
@@ -686,6 +726,14 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
           </View>
         </View>
       </Modal>
+
+      <AppDialog
+        visible={dialogoApp != null}
+        title={dialogoApp?.title ?? ""}
+        message={dialogoApp?.message ?? ""}
+        onRequestClose={() => setDialogoApp(null)}
+        actions={dialogoApp?.actions ?? []}
+      />
 
       <ExerciseSelectorModal
         visible={modalVisible}

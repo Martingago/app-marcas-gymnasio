@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
@@ -44,7 +44,7 @@ function agruparSeriesPorEjercicio(items: DetalleSesionSerie[]) {
   }));
 }
 
-export default function SessionDetailScreen({ route }: Props) {
+export default function SessionDetailScreen({ route, navigation }: Props) {
   const { entrenamientoId } = route.params;
   const [loading, setLoading] = useState(true);
   const [cabecera, setCabecera] = useState<{
@@ -110,15 +110,20 @@ export default function SessionDetailScreen({ route }: Props) {
           <Text className="text-slate-500">No hay series registradas en este entreno.</Text>
         ) : (
           bloquesEjercicio.map((bloque) => (
-            <View
+            <TouchableOpacity
               key={bloque.ejercicioId}
+              activeOpacity={0.88}
+              onPress={() => navigation.navigate("ExerciseDetail", { ejercicioId: bloque.ejercicioId })}
               className="bg-slate-800/95 rounded-2xl mb-4 border border-slate-700 overflow-hidden"
             >
-              <View className="px-4 py-3 border-b border-slate-700 bg-slate-800">
-                <Text className="text-white text-lg font-bold">{bloque.nombre}</Text>
-                <Text className="text-slate-500 text-xs mt-1">
-                  {bloque.series.length} serie{bloque.series.length === 1 ? "" : "s"}
-                </Text>
+              <View className="px-4 py-3 border-b border-slate-700 bg-slate-800 flex-row items-center justify-between">
+                <View className="flex-1 pr-2">
+                  <Text className="text-white text-lg font-bold">{bloque.nombre}</Text>
+                  <Text className="text-slate-500 text-xs mt-1">
+                    {bloque.series.length} serie{bloque.series.length === 1 ? "" : "s"} · Pulsa para ver historial
+                  </Text>
+                </View>
+                <Text className="text-blue-400 text-xl">›</Text>
               </View>
               <View className="p-3 gap-2">
                 {bloque.series.map((s) => (
@@ -133,7 +138,7 @@ export default function SessionDetailScreen({ route }: Props) {
                   </View>
                 ))}
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
