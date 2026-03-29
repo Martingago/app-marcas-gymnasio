@@ -548,9 +548,7 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
                   >
                     <Ionicons name="chevron-down" size={22} color="#94a3b8" />
                   </Pressable>
-                  <Text className="text-[9px] text-slate-500 text-center leading-3 mt-1 px-0.5">
-                    Pulsa ↑ o ↓ para subir o bajar este día en la rutina.
-                  </Text>
+ 
                 </View>
                 <View className="flex-1 min-w-0">
                   <Text className="text-slate-500 text-xs font-bold uppercase mb-1">Nombre del día</Text>
@@ -577,24 +575,27 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
                       placeholderTextColor="#64748b"
                     />
                   </View>
-                  <Text className="text-[10px] text-slate-600 mt-1.5 leading-4">
-                    El número «Día N» indica la posición en la rutina; cambia al reordenar con las flechas.
+                  <Text className="text-[9px] text-slate-500 text-center leading-3 mt-1 px-0.5">
+                    Pulsa ↑ o ↓ para subir o bajar este día en la rutina.
                   </Text>
+                  <View className="flex-row justify-end mt-2">
+                    <TouchableOpacity
+                      onPress={() =>
+                        setModalEliminarDia({ diaId: diaActivo.id_temp, diaNombre: diaActivo.nombre })
+                      }
+                      className="px-3 py-2 rounded-xl bg-red-500/15 border border-red-500/35 active:opacity-80"
+                      activeOpacity={0.85}
+                    >
+                      <Text className="text-red-400 font-semibold text-sm">Eliminar día</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <TouchableOpacity
-                  onPress={() =>
-                    setModalEliminarDia({ diaId: diaActivo.id_temp, diaNombre: diaActivo.nombre })
-                  }
-                  className="mt-6 px-3 py-2.5 rounded-xl bg-red-500/15 border border-red-500/35 shrink-0"
-                >
-                  <Text className="text-red-400 font-semibold text-sm">Eliminar día</Text>
-                </TouchableOpacity>
               </View>
             </View>
 
             <Text className="text-slate-500 text-xs font-bold uppercase mb-1">Ejercicios</Text>
             <Text className="text-slate-600 text-[10px] mb-3 leading-4">
-              En cada tarjeta, pulsa ↑ o ↓ para mover ese ejercicio arriba o abajo en este día. El número «Ejercicio N» se actualiza al reordenar; el entreno seguirá esa secuencia.
+              En cada tarjeta, pulsa ↑ o ↓ para mover ese ejercicio arriba o abajo en este día.
             </Text>
 
             {diaActivo.ejercicios.map((ej, ejIndex) => {
