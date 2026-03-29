@@ -8,6 +8,8 @@ App de gimnasio (React Native + Expo): rutinas, sesiones de entreno, historial y
 - **npm** (incluido con Node)
 - Para probar en dispositivo: **Expo Go** o emulador Android / simulador iOS
 
+El proyecto usa **Expo SDK 54**. La app **Expo Go** del móvil debe ser compatible con ese SDK (actualízala desde la tienda si ves el aviso de versión).
+
 ## Instalación
 
 ```bash
