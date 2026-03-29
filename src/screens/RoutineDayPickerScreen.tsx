@@ -80,12 +80,13 @@ export default function RoutineDayPickerScreen({ navigation, route }: Props) {
           renderItem={({ item }) => {
             const esEnCurso = entrenoActivo?.rutinaDiaId === item.id;
             const esSugerido = sugeridoId === item.id;
+            const destacarRecomendado = esSugerido && entrenoActivo == null;
             return (
               <TouchableOpacity
                 className={`p-4 rounded-2xl mb-3 border ${
                   esEnCurso
                     ? "bg-blue-900/40 border-blue-500/50"
-                    : esSugerido
+                    : destacarRecomendado
                       ? "bg-emerald-900/40 border-emerald-500/50"
                       : "bg-slate-800 border-slate-700"
                 }`}
@@ -104,7 +105,7 @@ export default function RoutineDayPickerScreen({ navigation, route }: Props) {
                     {esEnCurso ? (
                       <Text className="text-blue-300 text-xs font-bold uppercase">En curso</Text>
                     ) : null}
-                    {esSugerido ? (
+                    {destacarRecomendado ? (
                       <Text className="text-emerald-400 text-xs font-bold uppercase">Recomendado</Text>
                     ) : null}
                   </View>

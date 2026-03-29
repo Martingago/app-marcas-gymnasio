@@ -18,8 +18,8 @@ export default function RoutineDayPreviewScreen({ navigation, route }: Props) {
   const [entrenoActivo, setEntrenoActivo] = useState<Awaited<
     ReturnType<typeof getEntrenoActivoRutina>
   > | null>(null);
-  /** true = ejercicio plegado (solo título y resumen breve). */
-  const [collapsedEjercicios, setCollapsedEjercicios] = useState<Record<number, boolean>>({});
+  /** Solo `true` = acordeón abierto; por defecto cerrado. */
+  const [expandedEjercicios, setExpandedEjercicios] = useState<Record<number, boolean>>({});
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -59,19 +59,19 @@ export default function RoutineDayPreviewScreen({ navigation, route }: Props) {
           <Text className="text-slate-500 text-center">Este día no tiene ejercicios configurados.</Text>
         ) : (
           ejercicios.map((ej, ei) => {
-            const collapsed = !!collapsedEjercicios[ej.ejercicioId];
+            const expanded = expandedEjercicios[ej.ejercicioId] === true;
             const nSeries = ej.seriesPlantilla.length;
             return (
               <View key={`${ej.ejercicioId}-${ei}`} className="bg-slate-800/90 rounded-2xl p-4 mb-4 border border-slate-700">
                 <Pressable
                   onPress={() =>
-                    setCollapsedEjercicios((m) => ({ ...m, [ej.ejercicioId]: !m[ej.ejercicioId] }))
+                    setExpandedEjercicios((m) => ({ ...m, [ej.ejercicioId]: !m[ej.ejercicioId] }))
                   }
                   className="flex-row items-start justify-between gap-2 active:opacity-90"
                 >
                   <View className="flex-1 min-w-0 pr-1">
                     <Text className="text-white text-lg font-bold">{ej.nombre}</Text>
-                    {collapsed ? (
+                    {!expanded ? (
                       <Text className="text-slate-500 text-xs mt-1.5">
                         {nSeries === 0
                           ? "Sin series en plantilla"
@@ -80,14 +80,14 @@ export default function RoutineDayPreviewScreen({ navigation, route }: Props) {
                     ) : null}
                   </View>
                   <Ionicons
-                    name={collapsed ? "chevron-down" : "chevron-up"}
+                    name={expanded ? "chevron-up" : "chevron-down"}
                     size={22}
                     color="#94a3b8"
                     style={{ marginTop: 2 }}
                   />
                 </Pressable>
 
-                {!collapsed ? (
+                {expanded ? (
                   <View className="mt-3">
                     {ej.seriesPlantilla.length === 0 ? (
                       <Text className="text-slate-500 text-sm">Sin series objetivo en la plantilla.</Text>

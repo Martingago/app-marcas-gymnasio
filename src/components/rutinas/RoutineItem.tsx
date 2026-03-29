@@ -92,6 +92,8 @@ export default function RoutineItem({
   const [isExpanded, setIsExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [diasDetalle, setDiasDetalle] = useState<DiaDetalle[] | null>(null);
+  /** Solo `true` = series visibles; por defecto cerrado por ejercicio. Clave: diaId-rutinaDiaEjercicioId */
+  const [expandedEjercicioSeries, setExpandedEjercicioSeries] = useState<Record<string, boolean>>({});
 
   const toggleExpand = useCallback(async () => {
     if (isExpanded) {
@@ -180,33 +182,65 @@ export default function RoutineItem({
                   {dia.ejercicios.length === 0 ? (
                     <Text className="text-slate-500 text-sm italic">Sin ejercicios en este día.</Text>
                   ) : (
-                    dia.ejercicios.map((ej) => (
-                      <View
-                        key={ej.rutinaDiaEjercicioId}
-                        className="rounded-lg border border-slate-700/90 bg-slate-900/80 p-3"
-                      >
-                        <View className="flex-row items-baseline gap-2 mb-2">
-                          <Text className="text-slate-500 text-xs font-bold tabular-nums">#{ej.ordenEjercicio}</Text>
-                          <Text className="text-slate-100 font-semibold text-sm flex-1">{ej.nombre}</Text>
-                        </View>
-                        <View className="flex-row flex-wrap -mx-1">
-                          {ej.series.map((serie) => (
-                            <View
-                              key={`${ej.rutinaDiaEjercicioId}-${serie.orden}`}
-                              className="w-1/2 px-1 mb-2"
-                            >
-                              <View className="bg-slate-800 px-2 py-2 rounded-lg border border-slate-600 w-full min-h-[44px] justify-center">
-                                <Text className="text-slate-500 font-bold text-xs text-center">S{serie.orden}</Text>
-                                <Text className="text-slate-300 text-xs text-center mt-0.5" numberOfLines={2}>
-                                  {serie.reps} reps ·{" "}
-                                  <Text className="text-emerald-400/90">{serie.peso} kg</Text>
+                    dia.ejercicios.map((ej) => {
+                      const ejKey = `${dia.diaId}-${ej.rutinaDiaEjercicioId}`;
+                      const seriesAbiertas = expandedEjercicioSeries[ejKey] === true;
+                      const nSer = ej.series.length;
+                      return (
+                        <View
+                          key={ej.rutinaDiaEjercicioId}
+                          className="rounded-lg border border-slate-700/90 bg-slate-900/80 overflow-hidden"
+                        >
+                          <Pressable
+                            onPress={() =>
+                              setExpandedEjercicioSeries((m) => ({
+                                ...m,
+                                [ejKey]: !m[ejKey],
+                              }))
+                            }
+                            className="p-3 flex-row items-start justify-between gap-2 active:opacity-90"
+                          >
+                            <View className="flex-1 min-w-0 pr-1">
+                              <View className="flex-row items-baseline gap-2">
+                                <Text className="text-slate-500 text-xs font-bold tabular-nums">
+                                  #{ej.ordenEjercicio}
                                 </Text>
+                                <Text className="text-slate-100 font-semibold text-sm flex-1">{ej.nombre}</Text>
                               </View>
+                              {!seriesAbiertas ? (
+                                <Text className="text-slate-500 text-xs mt-1.5">
+                                  {nSer === 0 ? "Sin series" : `${nSer} ${nSer === 1 ? "serie" : "series"}`}
+                                </Text>
+                              ) : null}
                             </View>
-                          ))}
+                            <Ionicons
+                              name={seriesAbiertas ? "chevron-up" : "chevron-down"}
+                              size={20}
+                              color="#64748b"
+                              style={{ marginTop: 2 }}
+                            />
+                          </Pressable>
+                          {seriesAbiertas ? (
+                            <View className="px-3 pb-3 flex-row flex-wrap -mx-1">
+                              {ej.series.map((serie) => (
+                                <View
+                                  key={`${ej.rutinaDiaEjercicioId}-${serie.orden}`}
+                                  className="w-1/2 px-1 mb-2"
+                                >
+                                  <View className="bg-slate-800 px-2 py-2 rounded-lg border border-slate-600 w-full min-h-[44px] justify-center">
+                                    <Text className="text-slate-500 font-bold text-xs text-center">S{serie.orden}</Text>
+                                    <Text className="text-slate-300 text-xs text-center mt-0.5" numberOfLines={2}>
+                                      {serie.reps} reps ·{" "}
+                                      <Text className="text-emerald-400/90">{serie.peso} kg</Text>
+                                    </Text>
+                                  </View>
+                                </View>
+                              ))}
+                            </View>
+                          ) : null}
                         </View>
-                      </View>
-                    ))
+                      );
+                    })
                   )}
                 </View>
               </View>
