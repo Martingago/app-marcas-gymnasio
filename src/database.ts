@@ -5,10 +5,10 @@ import migrations from "../drizzle/migrations"; // Se genera automáticamente
 import * as schema from "./db/schema";
 import { seedDatabase } from "./db/seed";
 
-// Conexión nativa
-const expoDb = SQLite.openDatabaseSync("gymData.db");
+// Conexión nativa (exportada para backup / mantenimiento)
+export const sqliteDb = SQLite.openDatabaseSync("gymData.db");
 // Instancia de Drizzle
-export const db = drizzle(expoDb, { schema });
+export const db = drizzle(sqliteDb, { schema });
 
 
 /**
