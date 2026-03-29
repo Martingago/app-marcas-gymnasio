@@ -24,6 +24,7 @@ import {
 } from "@/interfaces/form/formRutina";
 import { RootStackParamList } from "@/navigation/types";
 import { getRutinaParaEditar } from "@/services/rutina/rutinasService";
+import { sanitizePesoInput, sanitizeRepsInput } from "@/lib/inputNumeric";
 
 const generarSerieVacia = (): FormRutinaDiaEjercicioSerie => ({
   id_temp: Math.random().toString(),
@@ -678,7 +679,13 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
                         selectTextOnFocus
                         value={serie.reps_objetivo?.toString()}
                         onChangeText={(txt) =>
-                          actualizarSerie(diaActivo.id_temp, ej.id_temp, serie.id_temp, "reps_objetivo", txt)
+                          actualizarSerie(
+                            diaActivo.id_temp,
+                            ej.id_temp,
+                            serie.id_temp,
+                            "reps_objetivo",
+                            sanitizeRepsInput(txt)
+                          )
                         }
                       />
                       <TextInput
@@ -687,7 +694,13 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
                         selectTextOnFocus
                         value={serie.peso_objetivo?.toString()}
                         onChangeText={(txt) =>
-                          actualizarSerie(diaActivo.id_temp, ej.id_temp, serie.id_temp, "peso_objetivo", txt)
+                          actualizarSerie(
+                            diaActivo.id_temp,
+                            ej.id_temp,
+                            serie.id_temp,
+                            "peso_objetivo",
+                            sanitizePesoInput(txt)
+                          )
                         }
                       />
                       <TouchableOpacity
