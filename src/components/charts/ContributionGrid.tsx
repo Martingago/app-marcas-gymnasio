@@ -27,6 +27,8 @@ type Props = {
   fechasConEntreno: string[];
   sesiones: SesionRutinaResumen[];
   onAbrirSesion: (entrenamientoId: number) => void;
+  /** Textos del modal cuando se muestran entrenos de todas las rutinas */
+  vistaGlobal?: boolean;
 };
 
 function startOfWeekMonday(d: Date): Date {
@@ -85,7 +87,12 @@ function computeCellAndGridWidth(gridAvail: number): { cellSize: number; gridWid
   return { cellSize, gridWidth, needsScroll: gridWidth > gridAvail + 0.5 };
 }
 
-export default function ContributionGrid({ fechasConEntreno, sesiones, onAbrirSesion }: Props) {
+export default function ContributionGrid({
+  fechasConEntreno,
+  sesiones,
+  onAbrirSesion,
+  vistaGlobal = false,
+}: Props) {
   const { width: screenW } = useWindowDimensions();
   const [measuredW, setMeasuredW] = useState(0);
 
@@ -238,12 +245,15 @@ export default function ContributionGrid({ fechasConEntreno, sesiones, onAbrirSe
 
               {listaDiaSeleccionado.length === 0 ? (
                 <Text className="text-slate-500 text-base leading-6">
-                  No hay entrenos registrados con esta rutina en esta fecha (día de descanso o entreno con otra rutina).
+                  {vistaGlobal
+                    ? "No hay entrenos registrados en esta fecha."
+                    : "No hay entrenos registrados con esta rutina en esta fecha (día de descanso o entreno con otra rutina)."}
                 </Text>
               ) : (
                 <>
                   <Text className="text-slate-400 text-sm mb-3">
-                    {listaDiaSeleccionado.length} entreno{listaDiaSeleccionado.length === 1 ? "" : "s"} con esta rutina
+                    {listaDiaSeleccionado.length} entreno{listaDiaSeleccionado.length === 1 ? "" : "s"}
+                    {vistaGlobal ? "" : " con esta rutina"}
                   </Text>
                   {listaDiaSeleccionado.map((s) => (
                     <TouchableOpacity

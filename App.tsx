@@ -113,7 +113,7 @@ export default function App() {
         <Stack.Screen
           name="History"
           component={HistoryScreen}
-          options={{ title: "Evolución" }}
+          options={{ title: "Historial y evolución" }}
         />
       </Stack.Navigator>
     </NavigationContainer>

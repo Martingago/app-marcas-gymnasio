@@ -394,6 +394,32 @@ export const getHistorialSesionesPorRutina = async (
   }));
 };
 
+/** Todos los entrenos finalizados del usuario (cualquier rutina), más recientes primero */
+export const getHistorialSesionesTodos = async (): Promise<SesionRutinaResumen[]> => {
+  const rows = await db
+    .select({
+      entrenamientoId: entrenamientos.id,
+      fecha: entrenamientos.fecha,
+      diaNombre: sql<string | null>`COALESCE(${rutinaDias.nombre}, ${entrenamientos.nombreSnapshot})`,
+      rutinaNombre: rutinas.nombre,
+    })
+    .from(entrenamientos)
+    .innerJoin(rutinas, eq(entrenamientos.rutinaId, rutinas.id))
+    .leftJoin(rutinaDias, eq(entrenamientos.rutinaDiaId, rutinaDias.id))
+    .where(eq(entrenamientos.finalizado, 1))
+    .orderBy(
+      desc(sql`COALESCE(${entrenamientos.finalizadoEn}, ${entrenamientos.fecha})`),
+      desc(entrenamientos.id)
+    );
+
+  return rows.map((r) => ({
+    entrenamientoId: r.entrenamientoId,
+    fecha: r.fecha,
+    diaNombre: r.diaNombre,
+    rutinaNombre: r.rutinaNombre ?? "—",
+  }));
+};
+
 export const getDetalleSesion = async (entrenamientoId: number) => {
   const cab = await db
     .select({
