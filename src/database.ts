@@ -23,7 +23,7 @@ export const initDB = async () => {
     console.log("✅ Tablas sincronizadas con éxito (Drizzle Migrations)");
 
     // Llena la base de datos con información por defecto si está vacía
-    await seedDatabase();
+    await seedDatabase(db);
 
     // Opcional: Insertar categorías por defecto si la tabla está vacía
     // Veremos cómo hacer esto con Drizzle en el siguiente paso de los Services

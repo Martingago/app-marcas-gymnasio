@@ -1,5 +1,14 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, FlatList, ActivityIndicator, Pressable, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Modal,
+  TouchableOpacity,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
@@ -15,6 +24,7 @@ import {
   etiquetaMetrica,
   MetricaEvolucion,
   puntosEvolucionPorSesion,
+  type PuntoEvolucionEjercicio,
   valorMetrica,
 } from "@/lib/evolucionEjercicio";
 
@@ -68,7 +78,12 @@ const TABS = [
   { id: "evolucion" as const, label: "Evolución" },
 ];
 
-export default function ExerciseDetailScreen({ route }: Props) {
+function formatMetricaValor(m: MetricaEvolucion, v: number): string {
+  if (m === "volumen") return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0);
+  return v.toFixed(1);
+}
+
+export default function ExerciseDetailScreen({ route, navigation }: Props) {
   const { ejercicioId } = route.params;
   const [loading, setLoading] = useState(true);
   const [nombre, setNombre] = useState("");
@@ -76,6 +91,7 @@ export default function ExerciseDetailScreen({ route }: Props) {
   const [historial, setHistorial] = useState<HistorialEjercicioFila[]>([]);
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("historial");
   const [metrica, setMetrica] = useState<MetricaEvolucion>("maxPeso");
+  const [puntoModal, setPuntoModal] = useState<PuntoEvolucionEjercicio | null>(null);
 
   const bloques = useMemo(() => agruparPorEntreno(historial), [historial]);
   const puntosEvo = useMemo(() => puntosEvolucionPorSesion(historial), [historial]);
@@ -118,6 +134,19 @@ export default function ExerciseDetailScreen({ route }: Props) {
   );
 
   const metricas: MetricaEvolucion[] = ["maxPeso", "volumen", "repsMejorSerie"];
+
+  const seriesDeSesion = useMemo(() => {
+    if (!puntoModal) return [] as HistorialEjercicioFila[];
+    return historial
+      .filter((r) => r.entrenamientoId === puntoModal.entrenamientoId)
+      .sort((a, b) => a.serieOrden - b.serieOrden);
+  }, [historial, puntoModal]);
+
+  const cabeceraSesionModal = useMemo(() => {
+    const head = seriesDeSesion[0];
+    if (!head) return { rutinaNombre: "—", diaNombre: null as string | null };
+    return { rutinaNombre: head.rutinaNombre, diaNombre: head.diaNombre };
+  }, [seriesDeSesion]);
 
   return (
     <SafeAreaView edges={["bottom", "left", "right"]} className="flex-1 bg-slate-900">
@@ -225,17 +254,129 @@ export default function ExerciseDetailScreen({ route }: Props) {
                   labels={etiquetasGrafica}
                   yAxisLabel={etiquetaMetrica(metrica)}
                   strokeColor="#34d399"
+                  onPointPress={(index) => {
+                    const p = puntosEvo[index];
+                    if (p) setPuntoModal(p);
+                  }}
                 />
               </View>
               {puntosEvo.length > 0 ? (
-                <Text className="text-slate-600 text-xs">
-                  {puntosEvo.length} sesión{puntosEvo.length === 1 ? "" : "es"} en el historial.
-                </Text>
+                <>
+                  <Text className="text-slate-600 text-xs mb-3">
+                    {puntosEvo.length} sesión{puntosEvo.length === 1 ? "" : "es"} en el historial. Toca un punto en la
+                    gráfica o una fila de la tabla.
+                  </Text>
+                  <Text className="text-slate-500 text-xs font-bold uppercase mb-2">Tabla por sesión</Text>
+                  <View className="bg-slate-800/80 rounded-xl border border-slate-700 overflow-hidden mb-2">
+                    <View className="flex-row border-b border-slate-700 bg-slate-800 px-3 py-2">
+                      <Text className="text-slate-500 text-[10px] font-bold uppercase flex-1">Fecha</Text>
+                      <Text className="text-slate-500 text-[10px] font-bold uppercase w-24 text-right">
+                        {etiquetaMetrica(metrica)}
+                      </Text>
+                    </View>
+                    {puntosEvo.map((p) => (
+                      <Pressable
+                        key={p.entrenamientoId}
+                        onPress={() => setPuntoModal(p)}
+                        className="flex-row items-center px-3 py-3 border-b border-slate-700/80 active:bg-slate-700/40"
+                      >
+                        <View className="flex-1 pr-2">
+                          <Text className="text-slate-200 text-sm font-medium">{p.fecha}</Text>
+                          <Text className="text-slate-500 text-xs capitalize mt-0.5">{fechaLegible(p.fecha)}</Text>
+                        </View>
+                        <Text className="text-emerald-400 font-mono text-sm w-24 text-right">
+                          {formatMetricaValor(metrica, valorMetrica(p, metrica))}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
               ) : null}
             </ScrollView>
           )}
         </View>
       )}
+
+      <Modal visible={puntoModal != null} transparent animationType="fade" onRequestClose={() => setPuntoModal(null)}>
+        <View className="flex-1 bg-black/70 justify-end">
+          <Pressable className="flex-1" onPress={() => setPuntoModal(null)} />
+          <View className="bg-slate-800 rounded-t-3xl border border-slate-600 border-b-0 max-h-[88%]">
+            <View className="w-12 h-1 bg-slate-600 rounded-full self-center mt-3 mb-2" />
+            {puntoModal ? (
+              <ScrollView className="px-5 pb-8 pt-2" keyboardShouldPersistTaps="handled">
+                <Text className="text-slate-500 text-xs font-bold uppercase mb-1">Sesión</Text>
+                <Text className="text-white text-xl font-bold capitalize">{fechaLegible(puntoModal.fecha)}</Text>
+                <Text className="text-slate-500 text-sm mb-1">{puntoModal.fecha}</Text>
+                <Text className="text-emerald-400 font-semibold text-sm mt-2">{cabeceraSesionModal.rutinaNombre}</Text>
+                <Text className="text-slate-400 text-sm mb-4">{cabeceraSesionModal.diaNombre ?? ""}</Text>
+
+                <Text className="text-slate-500 text-xs font-bold uppercase mb-2">Resumen (esta métrica)</Text>
+                <View className="bg-slate-900/80 rounded-xl p-3 border border-slate-700 mb-4">
+                  <Text className="text-slate-300 text-sm">
+                    <Text className="text-slate-500">{etiquetaMetrica(metrica)}: </Text>
+                    <Text className="text-emerald-300 font-semibold">
+                      {formatMetricaValor(metrica, valorMetrica(puntoModal, metrica))}
+                    </Text>
+                  </Text>
+                </View>
+
+                <Text className="text-slate-500 text-xs font-bold uppercase mb-2">Todas las series en este entreno</Text>
+                <Text className="text-slate-600 text-xs mb-2">Peso y repeticiones registradas para este ejercicio.</Text>
+                {seriesDeSesion.length === 0 ? (
+                  <Text className="text-slate-500 text-sm mb-4">No hay series en caché para esta sesión.</Text>
+                ) : (
+                  <View className="gap-2 mb-5">
+                    {seriesDeSesion.map((s) => (
+                      <View
+                        key={s.id}
+                        className="bg-slate-900/80 px-3 py-2.5 rounded-xl border border-slate-700 flex-row justify-between items-center"
+                      >
+                        <Text className="text-slate-400 text-sm">Serie {s.serieOrden}</Text>
+                        <Text className="text-slate-100 font-mono text-sm">
+                          {s.reps} reps × {s.peso} kg
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                <Text className="text-slate-500 text-xs font-bold uppercase mb-2">Otras métricas de la sesión</Text>
+                <View className="bg-slate-900/60 rounded-xl p-3 border border-slate-700 mb-5 gap-1">
+                  <Text className="text-slate-400 text-sm">
+                    Peso máx.: <Text className="text-white font-mono">{puntoModal.maxPeso.toFixed(1)} kg</Text>
+                  </Text>
+                  <Text className="text-slate-400 text-sm">
+                    Volumen total: <Text className="text-white font-mono">{puntoModal.volumenTotal.toFixed(0)}</Text>
+                  </Text>
+                  <Text className="text-slate-400 text-sm">
+                    Reps (serie más pesada):{" "}
+                    <Text className="text-white font-mono">{puntoModal.repsEnSerieMasPesada}</Text>
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  className="py-3.5 rounded-xl bg-blue-600 mb-3"
+                  onPress={() => {
+                    const id = puntoModal.entrenamientoId;
+                    setPuntoModal(null);
+                    navigation.navigate("SessionDetail", { entrenamientoId: id });
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text className="text-white text-center font-bold">Ver detalle entreno</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="py-3 rounded-xl bg-slate-700"
+                  onPress={() => setPuntoModal(null)}
+                  activeOpacity={0.85}
+                >
+                  <Text className="text-slate-200 text-center font-semibold">Cerrar</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

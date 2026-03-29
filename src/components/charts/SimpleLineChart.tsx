@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { View, Text, Dimensions } from "react-native";
+import { View, Text, Dimensions, Pressable } from "react-native";
 import Svg, { Polyline, Line, Circle, Text as SvgText, G } from "react-native-svg";
 
 type Props = {
@@ -9,6 +9,8 @@ type Props = {
   strokeColor?: string;
   yAxisLabel?: string;
   emptyText?: string;
+  /** Índice del punto (0..n-1), alineado con `values` y `labels` */
+  onPointPress?: (index: number) => void;
 };
 
 const PAD_L = 40;
@@ -23,6 +25,7 @@ export default function SimpleLineChart({
   strokeColor = "#34d399",
   yAxisLabel,
   emptyText = "No hay datos suficientes para la gráfica.",
+  onPointPress,
 }: Props) {
   const width = Math.min(Dimensions.get("window").width - 32, 360);
 
@@ -65,11 +68,25 @@ export default function SimpleLineChart({
   }
 
   if (values.length === 1) {
-    return (
-      <View className="py-4">
+    const inner = (
+      <>
         <Text className="text-slate-400 text-xs mb-2">{yAxisLabel ?? "Valor"}</Text>
         <Text className="text-emerald-400 text-3xl font-bold">{values[0].toFixed(1)}</Text>
         <Text className="text-slate-500 text-xs mt-2">Solo hay una sesión; la línea necesita al menos dos puntos.</Text>
+        {onPointPress ? (
+          <Text className="text-slate-600 text-[10px] mt-2">Toca el valor para ver el detalle de la sesión.</Text>
+        ) : null}
+      </>
+    );
+    return (
+      <View className="py-4">
+        {onPointPress ? (
+          <Pressable onPress={() => onPointPress(0)} className="active:opacity-80">
+            {inner}
+          </Pressable>
+        ) : (
+          inner
+        )}
       </View>
     );
   }
@@ -109,7 +126,20 @@ export default function SimpleLineChart({
           const x = PAD_L + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
           const yNorm = (v - minY) / (maxY - minY || 1);
           const y = PAD_T + innerH * (1 - yNorm);
-          return <Circle key={i} cx={x} cy={y} r={4} fill={strokeColor} stroke="#0f172a" strokeWidth={1} />;
+          return (
+            <React.Fragment key={i}>
+              {onPointPress ? (
+                <Circle
+                  cx={x}
+                  cy={y}
+                  r={14}
+                  fill="transparent"
+                  onPress={() => onPointPress(i)}
+                />
+              ) : null}
+              <Circle cx={x} cy={y} r={4} fill={strokeColor} stroke="#0f172a" strokeWidth={1} pointerEvents="none" />
+            </React.Fragment>
+          );
         })}
       </Svg>
       <View className="flex-row justify-between mt-1 px-1" style={{ width, paddingLeft: PAD_L - 8 }}>
