@@ -1,9 +1,10 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Pressable } from "react-native";
+import React, { useState, useLayoutEffect, useCallback, useMemo } from "react";
+import { View, Text, ActivityIndicator, TextInput, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useCategorias } from "@/hooks/useCategorias";
 import { useEjercicios } from "@/hooks/useEjercicios";
 import ExerciseList from "@/components/ejercicios/ExerciseList";
+import { ExerciseCategoryFilterBar } from "@/components/ejercicios/ExerciseCategoryFilterBar";
 import { Ejercicio } from "@/interfaces/ejercicio";
 
 import { OptionsModal, DeleteModal, FormModal } from "@/components/modals/ExerciseModals";
@@ -24,6 +25,17 @@ const buscadorInputStyle = {
 
 type Props = NativeStackScreenProps<RootStackParamList, "Exercises">;
 
+function tituloFiltro(categorias: { id: number; nombre: string; parentId: number | null }[], categoriaActiva: number | null): string {
+  if (categoriaActiva == null) return "Todos los ejercicios";
+  const c = categorias.find((x) => x.id === categoriaActiva);
+  if (!c) return "Ejercicios";
+  if (c.parentId != null) {
+    const p = categorias.find((x) => x.id === c.parentId);
+    return p ? `${p.nombre} · ${c.nombre}` : c.nombre;
+  }
+  return c.nombre;
+}
+
 export default function ExercisesScreen({ navigation }: Props) {
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null);
   const [busqueda, setBusqueda] = useState("");
@@ -36,14 +48,34 @@ export default function ExercisesScreen({ navigation }: Props) {
   const { categorias } = useCategorias();
   const { ejercicios, loading, agregar, editar, eliminar } = useEjercicios(categoriaActiva, busqueda);
 
+  const handleCreateNew = useCallback(() => {
+    setEjercicioSeleccionado(null);
+    setFormVisible(true);
+  }, []);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={handleCreateNew}
+          className="mr-1 px-2 py-1 rounded-lg active:bg-slate-800"
+          accessibilityLabel="Añadir ejercicio"
+          accessibilityRole="button"
+        >
+          <Ionicons name="add-circle-outline" size={26} color="#34d399" />
+        </Pressable>
+      ),
+    });
+  }, [navigation, handleCreateNew]);
+
+  const heading = useMemo(
+    () => tituloFiltro(categorias, categoriaActiva),
+    [categorias, categoriaActiva]
+  );
+
   const handleOpenOptions = (ejercicio: Ejercicio) => {
     setEjercicioSeleccionado(ejercicio);
     setOptionsVisible(true);
-  };
-
-  const handleCreateNew = () => {
-    setEjercicioSeleccionado(null);
-    setFormVisible(true);
   };
 
   const handleSaveForm = async (data: { id?: number; nombre: string; categoria_ids: number[] }) => {
@@ -63,78 +95,21 @@ export default function ExercisesScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView edges={["bottom", "left", "right"]} className="flex-1 bg-slate-900">
-      <View className="flex-1 px-4 pt-2">
-        <Text className="text-slate-600 text-[10px] font-bold uppercase mb-1">Filtrar por categoría</Text>
-        <Text className="text-slate-500 text-[10px] mb-2 leading-4">
-          Brazo o Pierna agrupan bíceps, tríceps, cuádriceps…; el filtro incluye subcategorías.
-        </Text>
-        <View className="flex-row items-stretch gap-2 mb-5">
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            className="flex-1"
-            contentContainerStyle={{ gap: 8, alignItems: "center", paddingVertical: 2, paddingRight: 4 }}
-          >
-            <Pressable
-              onPress={() => setCategoriaActiva(null)}
-              className={`px-4 py-2.5 rounded-xl border ${
-                categoriaActiva === null
-                  ? "bg-blue-600 border-blue-500"
-                  : "bg-slate-800 border-slate-700 active:opacity-90"
-              }`}
-            >
-              <Text
-                className={`text-sm font-semibold ${categoriaActiva === null ? "text-white" : "text-slate-300"}`}
-                numberOfLines={1}
-              >
-                Todas
-              </Text>
-            </Pressable>
-
-            {categorias.map((cat) => {
-              const active = categoriaActiva === cat.id;
-              const esHija = cat.parentId != null;
-              return (
-                <Pressable
-                  key={cat.id}
-                  onPress={() => setCategoriaActiva(cat.id)}
-                  className={`px-4 py-2.5 rounded-xl border max-w-[160px] ${
-                    active ? "bg-blue-600 border-blue-500" : "bg-slate-800 border-slate-700 active:opacity-90"
-                  } ${!active && esHija ? "border-l-2 border-l-violet-500/50" : ""}`}
-                >
-                  <Text
-                    className={`text-sm font-semibold ${active ? "text-white" : esHija ? "text-slate-400" : "text-slate-300"}`}
-                    numberOfLines={1}
-                  >
-                    {esHija ? `· ${cat.nombre}` : cat.nombre}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-
-          <TouchableOpacity
-            className="bg-emerald-600 px-3.5 py-2.5 rounded-xl border border-emerald-500 flex-row items-center justify-center gap-1.5 shrink-0"
-            onPress={handleCreateNew}
-            activeOpacity={0.85}
-            accessibilityLabel="Añadir nuevo ejercicio"
-          >
-            <Ionicons name="add-circle-outline" size={22} color="#fff" />
-            <Text className="text-white text-sm font-bold">Nuevo</Text>
-          </TouchableOpacity>
+      <View className="flex-1 px-4 pt-2 min-h-0">
+        <View className="mb-3 shrink-0">
+          <Text className="text-white text-xl font-bold">{heading}</Text>
+          {!loading ? (
+            <Text className="text-slate-500 text-sm mt-0.5">
+              {ejercicios.length === 1 ? "1 ejercicio" : `${ejercicios.length} ejercicios`}
+            </Text>
+          ) : null}
         </View>
 
-        <Text className="text-white text-2xl font-bold mb-3">
-          {categoriaActiva === null
-            ? "Todos los ejercicios"
-            : `Ejercicios de ${categorias.find((c) => c.id === categoriaActiva)?.nombre ?? "…"}`}
-        </Text>
-
-        <Text className="text-slate-500 text-xs font-bold uppercase mb-2">Buscar</Text>
-        <View className="mb-4">
+        <Text className="text-slate-500 text-xs font-bold uppercase mb-2 shrink-0">Buscar</Text>
+        <View className="mb-4 shrink-0">
           <TextInput
             style={buscadorInputStyle}
-            placeholder="Buscar por nombre…"
+            placeholder="Nombre del ejercicio…"
             placeholderTextColor="#94a3b8"
             value={busqueda}
             onChangeText={setBusqueda}
@@ -145,14 +120,24 @@ export default function ExercisesScreen({ navigation }: Props) {
           />
         </View>
 
+        <View className="mb-4 shrink-0">
+          <ExerciseCategoryFilterBar
+            categorias={categorias}
+            categoriaActiva={categoriaActiva}
+            onChange={setCategoriaActiva}
+          />
+        </View>
+
         {loading ? (
           <ActivityIndicator size="large" color="#3b82f6" className="mt-10" />
         ) : (
-          <ExerciseList
-            ejercicios={ejercicios}
-            onExercisePress={(ej) => navigation.navigate("ExerciseDetail", { ejercicioId: ej.id })}
-            onOptionsPress={handleOpenOptions}
-          />
+          <View className="flex-1 min-h-0">
+            <ExerciseList
+              ejercicios={ejercicios}
+              onExercisePress={(ej) => navigation.navigate("ExerciseDetail", { ejercicioId: ej.id })}
+              onOptionsPress={handleOpenOptions}
+            />
+          </View>
         )}
 
         <OptionsModal
