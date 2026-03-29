@@ -9,6 +9,7 @@ import {
   Pressable,
   Modal,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import AppDialog, { AppDialogAction } from "@/components/ui/AppDialog";
 import ExerciseSelectorModal from "@/components/modals/ExerciseSelectorModal";
@@ -285,6 +286,27 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
     setActiveDiaIndex(idxNuevo);
   };
 
+  /** Cambia el orden de los días en la rutina (el guardado usa el índice como `orden` en BD). */
+  const moverDiaEnRutina = (diaId: string, delta: -1 | 1) => {
+    setRutina((prev) => {
+      const idx = prev.dias.findIndex((d) => d.id_temp === diaId);
+      if (idx < 0) return prev;
+      const next = idx + delta;
+      if (next < 0 || next >= prev.dias.length) return prev;
+      const copia = [...prev.dias];
+      [copia[idx], copia[next]] = [copia[next], copia[idx]];
+      return { ...prev, dias: copia };
+    });
+    setActiveDiaIndex((prevA) => {
+      const idx = rutina.dias.findIndex((d) => d.id_temp === diaId);
+      const next = idx + delta;
+      if (idx < 0 || next < 0 || next >= rutina.dias.length) return prevA;
+      if (prevA === idx) return next;
+      if (prevA === next) return idx;
+      return prevA;
+    });
+  };
+
   const agregarHuecoEjercicio = (diaId: string) => {
     setRutina((prev) => ({
       ...prev,
@@ -296,6 +318,25 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
           };
         }
         return d;
+      }),
+    }));
+  };
+
+  /** Reordenar ejercicios dentro de un día (el guardado usa el índice como `orden` en BD). */
+  const moverEjercicioEnDia = (diaId: string, ejId: string, delta: -1 | 1) => {
+    setRutina((prev) => ({
+      ...prev,
+      dias: prev.dias.map((d) => {
+        if (d.id_temp !== diaId) return d;
+        const idx = d.ejercicios.findIndex((e) => e.id_temp === ejId);
+        if (idx < 0) return d;
+        const next = idx + delta;
+        if (next < 0 || next >= d.ejercicios.length) return d;
+        const copia = [...d.ejercicios];
+        const tmp = copia[idx];
+        copia[idx] = copia[next];
+        copia[next] = tmp;
+        return { ...d, ejercicios: copia };
       }),
     }));
   };
@@ -392,6 +433,10 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
   };
 
   const diaActivo = rutina.dias[activeDiaIndex] ?? null;
+  const indiceDiaActivo = diaActivo ? rutina.dias.findIndex((d) => d.id_temp === diaActivo.id_temp) : -1;
+  const puedeSubirDiaEnRutina = indiceDiaActivo > 0;
+  const puedeBajarDiaEnRutina =
+    indiceDiaActivo >= 0 && indiceDiaActivo < rutina.dias.length - 1;
 
   if (isCargandoEdicion) {
     return (
@@ -420,6 +465,9 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
       {rutina.dias.length > 0 ? (
         <View className="border-b border-slate-800 bg-slate-900">
           <Text className="text-slate-600 text-[10px] font-bold uppercase px-4 pt-2 pb-1">Días (pestañas)</Text>
+          <Text className="text-slate-600 text-[10px] px-4 pb-2 leading-4">
+            El orden de las pestañas es el de la rutina (Día 1, Día 2…). Pulsa ↑ o ↓ junto al nombre del día para moverlo: el número de orden dentro del campo se actualiza al instante.
+          </Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -478,44 +526,108 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
           </View>
         ) : (
           <View className="pb-6">
-            <View className="flex-row items-start justify-between gap-3 mb-5">
-              <View className="flex-1">
-                <Text className="text-slate-500 text-xs font-bold uppercase mb-1">Nombre del día</Text>
-                <TextInput
-                  className="bg-slate-800/90 text-white text-lg font-semibold px-4 py-3 rounded-xl border border-slate-700"
-                  value={diaActivo.nombre}
-                  onChangeText={(txt) =>
-                    setRutina((prev) => ({
-                      ...prev,
-                      dias: prev.dias.map((d) =>
-                        d.id_temp === diaActivo.id_temp ? { ...d, nombre: txt } : d
-                      ),
-                    }))
+            <View className="mb-5">
+              <View className="flex-row items-start gap-2">
+                <View className="w-[76px] items-center pt-1">
+                  <Pressable
+                    onPress={() => moverDiaEnRutina(diaActivo.id_temp, -1)}
+                    disabled={!puedeSubirDiaEnRutina}
+                    className={`p-2 rounded-lg ${puedeSubirDiaEnRutina ? "active:bg-slate-800" : "opacity-25"}`}
+                    accessibilityLabel="Subir día en la rutina"
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="chevron-up" size={22} color="#94a3b8" />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => moverDiaEnRutina(diaActivo.id_temp, 1)}
+                    disabled={!puedeBajarDiaEnRutina}
+                    className={`p-2 rounded-lg ${puedeBajarDiaEnRutina ? "active:bg-slate-800" : "opacity-25"}`}
+                    accessibilityLabel="Bajar día en la rutina"
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="chevron-down" size={22} color="#94a3b8" />
+                  </Pressable>
+                  <Text className="text-[9px] text-slate-500 text-center leading-3 mt-1 px-0.5">
+                    Pulsa ↑ o ↓ para subir o bajar este día en la rutina.
+                  </Text>
+                </View>
+                <View className="flex-1 min-w-0">
+                  <Text className="text-slate-500 text-xs font-bold uppercase mb-1">Nombre del día</Text>
+                  <View className="flex-row rounded-xl border border-slate-700 bg-slate-800/90 overflow-hidden min-h-[52px]">
+                    <View className="justify-center px-3 py-2 bg-slate-900/85 border-r border-slate-700 min-w-[72px]">
+                      <Text className="text-slate-500 text-[9px] font-bold uppercase">Orden</Text>
+                      <Text className="text-blue-400 font-bold text-xl tabular-nums leading-tight">
+                        Día {indiceDiaActivo + 1}
+                      </Text>
+                      <Text className="text-slate-600 text-[9px] mt-0.5">de {rutina.dias.length}</Text>
+                    </View>
+                    <TextInput
+                      className="flex-1 text-white text-lg font-semibold px-3 py-2 min-h-[52px]"
+                      value={diaActivo.nombre}
+                      onChangeText={(txt) =>
+                        setRutina((prev) => ({
+                          ...prev,
+                          dias: prev.dias.map((d) =>
+                            d.id_temp === diaActivo.id_temp ? { ...d, nombre: txt } : d
+                          ),
+                        }))
+                      }
+                      placeholder="Ej: Tren superior"
+                      placeholderTextColor="#64748b"
+                    />
+                  </View>
+                  <Text className="text-[10px] text-slate-600 mt-1.5 leading-4">
+                    El número «Día N» indica la posición en la rutina; cambia al reordenar con las flechas.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() =>
+                    setModalEliminarDia({ diaId: diaActivo.id_temp, diaNombre: diaActivo.nombre })
                   }
-                  placeholder="Ej: Tren superior"
-                  placeholderTextColor="#64748b"
-                />
+                  className="mt-6 px-3 py-2.5 rounded-xl bg-red-500/15 border border-red-500/35 shrink-0"
+                >
+                  <Text className="text-red-400 font-semibold text-sm">Eliminar día</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                onPress={() =>
-                  setModalEliminarDia({ diaId: diaActivo.id_temp, diaNombre: diaActivo.nombre })
-                }
-                className="mt-6 px-3 py-2.5 rounded-xl bg-red-500/15 border border-red-500/35"
-              >
-                <Text className="text-red-400 font-semibold text-sm">Eliminar día</Text>
-              </TouchableOpacity>
             </View>
 
-            <Text className="text-slate-500 text-xs font-bold uppercase mb-3">Ejercicios</Text>
+            <Text className="text-slate-500 text-xs font-bold uppercase mb-1">Ejercicios</Text>
+            <Text className="text-slate-600 text-[10px] mb-3 leading-4">
+              En cada tarjeta, pulsa ↑ o ↓ para mover ese ejercicio arriba o abajo en este día. El número «Ejercicio N» se actualiza al reordenar; el entreno seguirá esa secuencia.
+            </Text>
 
-            {diaActivo.ejercicios.map((ej, ejIndex) => (
+            {diaActivo.ejercicios.map((ej, ejIndex) => {
+              const totalEj = diaActivo.ejercicios.length;
+              const puedeSubir = ejIndex > 0;
+              const puedeBajar = ejIndex < totalEj - 1;
+              return (
               <View
                 key={ej.id_temp}
                 className="bg-slate-800/80 rounded-2xl mb-4 border border-slate-700/90 overflow-hidden"
               >
-                <View className="flex-row items-center justify-between px-4 py-3 border-b border-slate-700/80 bg-slate-800">
+                <View className="flex-row items-center px-2 py-2 border-b border-slate-700/80 bg-slate-800">
+                  <View className="mr-1">
+                    <Pressable
+                      onPress={() => moverEjercicioEnDia(diaActivo.id_temp, ej.id_temp, -1)}
+                      disabled={!puedeSubir}
+                      className={`p-2 rounded-lg ${puedeSubir ? "active:bg-slate-700" : "opacity-25"}`}
+                      accessibilityLabel="Subir ejercicio"
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="chevron-up" size={22} color="#94a3b8" />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => moverEjercicioEnDia(diaActivo.id_temp, ej.id_temp, 1)}
+                      disabled={!puedeBajar}
+                      className={`p-2 rounded-lg ${puedeBajar ? "active:bg-slate-700" : "opacity-25"}`}
+                      accessibilityLabel="Bajar ejercicio"
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="chevron-down" size={22} color="#94a3b8" />
+                    </Pressable>
+                  </View>
                   <TouchableOpacity
-                    className="flex-1 pr-2"
+                    className="flex-1 pr-2 py-1"
                     onPress={() => {
                       setSlotSeleccionado({ diaId: diaActivo.id_temp, ejId: ej.id_temp });
                       setModalVisible(true);
@@ -541,6 +653,7 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
                       })
                     }
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    className="px-2 py-2"
                   >
                     <Text className="text-slate-500 font-bold text-lg">×</Text>
                   </TouchableOpacity>
@@ -594,7 +707,8 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
                   </TouchableOpacity>
                 </View>
               </View>
-            ))}
+            );
+            })}
 
             <TouchableOpacity
               className="py-3.5 rounded-xl items-center border border-dashed border-slate-600 bg-slate-800/40"
