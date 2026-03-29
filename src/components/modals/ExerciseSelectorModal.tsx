@@ -13,6 +13,17 @@ import { useEjercicios } from "@/hooks/useEjercicios";
 import ExerciseList from "@/components/ejercicios/ExerciseList";
 import { Ejercicio } from "@/interfaces/ejercicio";
 
+const buscadorInputStyle = {
+  backgroundColor: "#1e293b",
+  color: "#f8fafc",
+  borderWidth: 1,
+  borderColor: "#64748b",
+  borderRadius: 12,
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  fontSize: 16,
+} as const;
+
 interface Props {
   visible: boolean;
   onClose: () => void;
@@ -49,13 +60,18 @@ export default function ExerciseSelectorModal({
         </View>
 
         {/* BUSCADOR */}
+        <View className="mb-4">
         <TextInput
-          className="bg-slate-800 text-white p-4 rounded-xl border border-slate-700 mb-4"
-          placeholder="Buscar ejercicio..."
-          placeholderTextColor="#64748b"
+          style={buscadorInputStyle}
+          placeholder="Buscar ejercicio…"
+          placeholderTextColor="#94a3b8"
           value={busqueda}
           onChangeText={setBusqueda}
+          autoCorrect={false}
+          autoCapitalize="none"
+          underlineColorAndroid="transparent"
         />
+        </View>
 
         {/* CATEGORÍAS */}
         <View className="h-12 mb-4">
