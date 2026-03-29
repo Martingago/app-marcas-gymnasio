@@ -5,10 +5,12 @@ import migrations from "../drizzle/migrations"; // Se genera automáticamente
 import * as schema from "./db/schema";
 import { seedDatabase } from "./db/seed";
 
-// Conexión nativa
-const expoDb = SQLite.openDatabaseSync("gymData.db");
+// Conexión nativa (exportada para backup / mantenimiento)
+export const sqliteDb = SQLite.openDatabaseSync("gymData.db");
+// ON DELETE CASCADE y demás FK solo se aplican con foreign_keys activado (SQLite).
+sqliteDb.execSync("PRAGMA foreign_keys = ON;");
 // Instancia de Drizzle
-export const db = drizzle(expoDb, { schema });
+export const db = drizzle(sqliteDb, { schema });
 
 
 /**
@@ -21,6 +23,15 @@ export const initDB = async () => {
     await migrate(db, migrations);
     
     console.log("✅ Tablas sincronizadas con éxito (Drizzle Migrations)");
+
+    // Datos huérfanos (p. ej. ejercicio borrado sin FK activas): evita export/import incoherentes
+    try {
+      sqliteDb.execSync(
+        "DELETE FROM ejercicio_categorias WHERE ejercicio_id NOT IN (SELECT id FROM ejercicios);"
+      );
+    } catch {
+      /* tabla aún no existe en primera arrancada muy temprana */
+    }
 
     // Llena la base de datos con información por defecto si está vacía
     await seedDatabase(db);
