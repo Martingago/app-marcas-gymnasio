@@ -4,7 +4,7 @@ import { db } from "@/database";
 import { rutinas } from "@/db/schema/rutina/rutina";
 
 import { rutinaDiaEjercicios } from "@/db/schema/rutina/rutinaDiaEjercicios";
-import { eq, sql, asc, count } from "drizzle-orm";
+import { eq, sql, asc, desc, count } from "drizzle-orm";
 
 import { rutinaDias } from "@/db/schema";
 import { ejercicios } from "@/db/schema/ejercicios";
@@ -62,7 +62,8 @@ export const getRutinasConDetalle = async () => {
     })
     .from(rutinas)
     .leftJoin(rutinaDias, eq(rutinaDias.rutinaId, rutinas.id))
-    .groupBy(rutinas.id, rutinas.nombre);
+    .groupBy(rutinas.id, rutinas.nombre)
+    .orderBy(desc(rutinas.id));
 };
 
 // Obtener los días y ejercicios de una rutina especifica (para el desplegable)
@@ -73,8 +74,10 @@ export const getRutinaCompleta = async (rutinaId: number) => {
     .select({
       diaId: rutinaDias.id,
       diaNombre: rutinaDias.nombre,
+      ordenDia: rutinaDias.orden,
       /** PK de rutina_dia_ejercicios (único por hueco en el día) */
       rutinaDiaEjercicioId: rutinaDiaEjercicios.id,
+      ordenEjercicioEnDia: rutinaDiaEjercicios.orden,
       /** FK a ejercicios.id — es lo que debe volver al formulario como ejercicio_id al guardar */
       ejercicioMaestroId: rutinaDiaEjercicios.ejercicioId,
       ejercicioNombre: ejercicios.nombre,

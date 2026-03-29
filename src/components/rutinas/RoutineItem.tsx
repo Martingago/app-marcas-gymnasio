@@ -1,63 +1,101 @@
-// src\components\rutinas\RoutineItem.tsx
+import React, { useState, useCallback } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator, Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { getRutinaCompleta } from "@/services/rutina/rutinasService";
 
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { getRutinaCompleta } from '@/services/rutina/rutinasService';
+type SerieDetalle = { orden: number; reps: string; peso: string };
 
-interface SerieDetalle {
-  orden: number;
-  reps: string;
-  peso: string;
-}
+type EjercicioDetalle = {
+  rutinaDiaEjercicioId: number;
+  ordenEjercicio: number;
+  nombre: string;
+  series: SerieDetalle[];
+};
 
-interface EjerciciosAgrupados {[ejercicioNombre: string]: SerieDetalle[];
-}
+type DiaDetalle = {
+  diaId: number;
+  ordenDia: number;
+  nombre: string;
+  ejercicios: EjercicioDetalle[];
+};
 
-interface DiasAgrupados {
-  [diaNombre: string]: EjerciciosAgrupados;
+function buildDiasDetalle(
+  rows: Awaited<ReturnType<typeof getRutinaCompleta>>
+): DiaDetalle[] {
+  const ordenDiaIds: number[] = [];
+  const porDia = new Map<number, DiaDetalle>();
+  const ejPorDia = new Map<number, Map<number, EjercicioDetalle>>();
+
+  for (const row of rows) {
+    if (!porDia.has(row.diaId)) {
+      porDia.set(row.diaId, {
+        diaId: row.diaId,
+        ordenDia: row.ordenDia,
+        nombre: row.diaNombre,
+        ejercicios: [],
+      });
+      ordenDiaIds.push(row.diaId);
+      ejPorDia.set(row.diaId, new Map());
+    }
+
+    if (row.rutinaDiaEjercicioId == null) continue;
+
+    const ejMap = ejPorDia.get(row.diaId)!;
+    if (!ejMap.has(row.rutinaDiaEjercicioId)) {
+      const ej: EjercicioDetalle = {
+        rutinaDiaEjercicioId: row.rutinaDiaEjercicioId,
+        ordenEjercicio: row.ordenEjercicioEnDia ?? 0,
+        nombre: row.ejercicioNombre ?? "—",
+        series: [],
+      };
+      ejMap.set(row.rutinaDiaEjercicioId, ej);
+    }
+
+    const ej = ejMap.get(row.rutinaDiaEjercicioId)!;
+    if (row.serieOrden != null) {
+      ej.series.push({
+        orden: row.serieOrden,
+        reps: String(row.repsObjetivo ?? "—"),
+        peso: String(row.pesoObjetivo ?? "0"),
+      });
+    }
+  }
+
+  for (const id of ordenDiaIds) {
+    const dia = porDia.get(id)!;
+    const ejMap = ejPorDia.get(id)!;
+    dia.ejercicios = [...ejMap.values()].sort((a, b) => a.ordenEjercicio - b.ordenEjercicio);
+    for (const ej of dia.ejercicios) {
+      ej.series.sort((a, b) => a.orden - b.orden);
+    }
+  }
+
+  return ordenDiaIds.map((id) => porDia.get(id)!);
 }
 
 interface Props {
-  rutina: any; // Aquí puedes poner la interfaz estricta si la tienes
-  onOptionsPress: (rutina: any) => void;
-  onStartWorkout?: (rutina: any) => void;
-  onRoutineHistory?: (rutina: any) => void;
+  rutina: { id: number; nombre: string; totalDias: number };
+  onOptionsPress: (rutina: Props["rutina"]) => void;
+  onStartWorkout?: (rutina: Props["rutina"]) => void;
+  onRoutineHistory?: (rutina: Props["rutina"]) => void;
 }
 
 export default function RoutineItem({ rutina, onOptionsPress, onStartWorkout, onRoutineHistory }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
-  const[diasAgrupados, setDiasAgrupados] = useState<DiasAgrupados | null>(null);
+  const [diasDetalle, setDiasDetalle] = useState<DiaDetalle[] | null>(null);
 
-  const toggleExpand = async () => {
+  const toggleExpand = useCallback(async () => {
     if (isExpanded) {
       setIsExpanded(false);
       return;
     }
 
-    // Si no tenemos los datos cacheados, los descargamos
-    if (!diasAgrupados) {
+    if (!diasDetalle) {
       setLoading(true);
       try {
         const detalles = await getRutinaCompleta(rutina.id);
-        
-        // Agrupamos la info
-        const agrupado = detalles.reduce<DiasAgrupados>((acc, curr) => {
-          if (!acc[curr.diaNombre]) acc[curr.diaNombre] = {};
-          if (!curr.ejercicioNombre) return acc;
-          if (!acc[curr.diaNombre][curr.ejercicioNombre]) acc[curr.diaNombre][curr.ejercicioNombre] = [];
-          if (curr.serieOrden != null) {
-            acc[curr.diaNombre][curr.ejercicioNombre].push({
-              orden: curr.serieOrden,
-              reps: curr.repsObjetivo || '-',
-              peso: curr.pesoObjetivo || '0'
-            });
-          }
-          return acc;
-        }, {});
-        
-        setDiasAgrupados(agrupado);
+        setDiasDetalle(buildDiasDetalle(detalles));
       } catch (error) {
         console.error("Error al cargar detalles de la rutina:", error);
       } finally {
@@ -65,87 +103,104 @@ export default function RoutineItem({ rutina, onOptionsPress, onStartWorkout, on
       }
     }
     setIsExpanded(true);
-  };
+  }, [isExpanded, diasDetalle, rutina.id]);
 
   return (
     <View className="bg-slate-800 rounded-2xl mb-4 border border-slate-700 overflow-hidden">
-      
-      {/* CABECERA (Acordeón + Botón de Opciones) */}
-      <View className="p-5 flex-row justify-between items-center">
-        
-        {/* Zona clickeable para expandir */}
-        <TouchableOpacity 
-          className="flex-1 flex-row items-center pr-2"
-          onPress={toggleExpand}
-          activeOpacity={0.7}
-        >
-          <View className="flex-1">
-            <Text className="text-white text-xl font-bold">{rutina.nombre}</Text>
-            <Text className="text-slate-400 mt-1">
+      <View className="p-4 flex-row justify-between items-center border-b border-slate-700/80">
+        <Pressable className="flex-1 flex-row items-center pr-2" onPress={() => void toggleExpand()} accessibilityRole="button">
+          <View className="flex-1 min-w-0">
+            <Text className="text-white text-lg font-bold" numberOfLines={2}>
+              {rutina.nombre}
+            </Text>
+            <Text className="text-slate-500 text-sm mt-1">
               {rutina.totalDias === 1 ? "1 día de entrenamiento" : `${rutina.totalDias} días de entrenamiento`}
             </Text>
           </View>
-          <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={24} color="#64748b" />
-        </TouchableOpacity>
+          <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={22} color="#64748b" />
+        </Pressable>
 
-        {/* Separador visual */}
-        <View className="w-[1px] h-8 bg-slate-700 mx-2" />
+        <View className="w-px h-10 bg-slate-700 mx-2" />
 
-        {/* Botón de Opciones (3 puntitos) */}
-        <TouchableOpacity 
+        <TouchableOpacity
           className="p-2"
           onPress={() => onOptionsPress(rutina)}
+          accessibilityLabel="Opciones de rutina"
         >
-          <Ionicons name="ellipsis-vertical" size={24} color="#94a3b8" />
+          <Ionicons name="ellipsis-vertical" size={22} color="#94a3b8" />
         </TouchableOpacity>
-
       </View>
 
-      <View className="flex-row px-5 pb-4 gap-2">
+      <View className="flex-row px-4 pb-4 pt-3 gap-2">
         <TouchableOpacity
-          className="flex-1 bg-blue-600 py-3 rounded-xl items-center"
+          className="flex-1 bg-blue-600 py-3 rounded-xl items-center border border-blue-500/40"
           onPress={() => onStartWorkout?.(rutina)}
+          activeOpacity={0.85}
         >
           <Text className="text-white font-bold">Entrenar</Text>
         </TouchableOpacity>
         <TouchableOpacity
           className="flex-1 bg-slate-700 py-3 rounded-xl items-center border border-slate-600"
           onPress={() => onRoutineHistory?.(rutina)}
+          activeOpacity={0.85}
         >
           <Text className="text-slate-200 font-bold">Historial</Text>
         </TouchableOpacity>
       </View>
 
-      {/* CONTENIDO DESPLEGABLE */}
       {isExpanded && (
-        <View className="px-5 pb-5 border-t border-slate-700 pt-3 bg-slate-800/80">
+        <View className="px-4 pb-4 pt-1 border-t border-slate-700 bg-slate-900/40">
           {loading ? (
             <ActivityIndicator size="small" color="#3b82f6" className="my-4" />
-          ) : diasAgrupados ? (
-            Object.entries(diasAgrupados).map(([diaNombre, ejercicios]) => (
-              <View key={diaNombre} className="mb-6">
-                <Text className="text-emerald-400 font-bold text-lg mb-3 border-b border-slate-700 pb-1">
-                  {diaNombre}
-                </Text>
-                
-                {Object.entries(ejercicios).map(([ejNombre, series], ejIndex) => (
-                  <View key={ejIndex} className="mb-4 ml-2">
-                    <Text className="text-slate-200 font-bold text-base mb-1">• {ejNombre}</Text>
-                    <View className="ml-4 flex-row flex-wrap">
-                      {series.map((serie, sIndex) => (
-                        <View key={sIndex} className="bg-slate-700/50 px-3 py-1 rounded-md mr-2 mb-2 border border-slate-600">
-                          <Text className="text-slate-300 text-sm">
-                            <Text className="text-slate-400 font-bold">S{serie.orden}: </Text>
-                            {serie.reps} reps <Text className="text-emerald-400/80">@ {serie.peso}kg</Text>
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
+          ) : diasDetalle && diasDetalle.length > 0 ? (
+            diasDetalle.map((dia) => (
+              <View key={dia.diaId} className="mb-3 rounded-xl border border-slate-700 bg-slate-800/90 overflow-hidden">
+                <View className="flex-row items-center gap-2 px-3 py-2.5 bg-slate-900/80 border-b border-slate-700">
+                  <View className="bg-blue-600/90 px-2 py-1 rounded-lg border border-blue-500/50">
+                    <Text className="text-white text-xs font-bold tabular-nums">Día {dia.ordenDia}</Text>
                   </View>
-                ))}
+                  <Text className="text-white font-semibold flex-1" numberOfLines={2}>
+                    {dia.nombre}
+                  </Text>
+                </View>
+                <View className="p-3 gap-2">
+                  {dia.ejercicios.length === 0 ? (
+                    <Text className="text-slate-500 text-sm italic">Sin ejercicios en este día.</Text>
+                  ) : (
+                    dia.ejercicios.map((ej) => (
+                      <View
+                        key={ej.rutinaDiaEjercicioId}
+                        className="rounded-lg border border-slate-700/90 bg-slate-900/80 p-3"
+                      >
+                        <View className="flex-row items-baseline gap-2 mb-2">
+                          <Text className="text-slate-500 text-xs font-bold tabular-nums">#{ej.ordenEjercicio}</Text>
+                          <Text className="text-slate-100 font-semibold text-sm flex-1">{ej.nombre}</Text>
+                        </View>
+                        <View className="flex-row flex-wrap -mx-1">
+                          {ej.series.map((serie) => (
+                            <View
+                              key={`${ej.rutinaDiaEjercicioId}-${serie.orden}`}
+                              className="w-1/2 px-1 mb-2"
+                            >
+                              <View className="bg-slate-800 px-2 py-2 rounded-lg border border-slate-600 w-full min-h-[44px] justify-center">
+                                <Text className="text-slate-500 font-bold text-xs text-center">S{serie.orden}</Text>
+                                <Text className="text-slate-300 text-xs text-center mt-0.5" numberOfLines={2}>
+                                  {serie.reps} reps ·{" "}
+                                  <Text className="text-emerald-400/90">{serie.peso} kg</Text>
+                                </Text>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
               </View>
             ))
-          ) : null}
+          ) : (
+            <Text className="text-slate-500 text-sm text-center py-3">No hay datos de esta rutina.</Text>
+          )}
         </View>
       )}
     </View>
