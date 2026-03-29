@@ -179,7 +179,7 @@ export default function ContributionGrid({
   return (
     <View style={{ alignSelf: "stretch" }} onLayout={onRootLayout}>
       <Text className="text-slate-500 text-xs mb-3">
-        Últimas {WEEKS} semanas · Cuadrados 1:1 al ancho disponible · Toca un día para ver el detalle
+        Últimas {WEEKS} semanas · Toca un día para ver el detalle
       </Text>
 
       <View className="flex-row items-start" style={{ alignSelf: "stretch" }}>
