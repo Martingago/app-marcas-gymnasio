@@ -17,6 +17,15 @@ Esta app usa **Expo SDK 54**. Para obtener un **APK** instalable en Android sin 
    npx eas-cli --version
    ```
 
+   ```bash
+   npx expo export -c 
+   ```
+
+   ```bash
+   npx expo doctor
+   ```
+
+
 ## 2. Enlazar el proyecto con Expo (primera vez)
 
 Desde la raíz del repositorio:

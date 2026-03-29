@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1774134368674,
+      "tag": "0000_young_venus",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1774391443250,
+      "tag": "0001_curvy_talisman",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1774392054869,
+      "tag": "0002_productive_next_avengers",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1774393000000,
+      "tag": "0003_workout_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1774394000000,
+      "tag": "0004_entrenamiento_finalizado",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1774789003380,
+      "tag": "0005_outgoing_kinsey_walden",
+      "breakpoints": true
+    }
+  ]
+}
