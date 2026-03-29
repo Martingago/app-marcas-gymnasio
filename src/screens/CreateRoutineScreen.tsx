@@ -504,10 +504,10 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
             })}
             <Pressable
               onPress={agregarDia}
-              className="w-[72px] py-2.5 rounded-xl border-2 border-dashed border-slate-600 bg-slate-800/50 items-center justify-center min-h-[48px]"
+              className="w-[77px] py-2.5 rounded-xl border-2 border-dashed border-slate-600 bg-slate-800/50 flex-row gap-1 items-center justify-center min-h-[48px]"
             >
-              <Text className="text-blue-400 font-bold text-xl leading-none">+</Text>
-              <Text className="text-slate-500 text-[10px] font-semibold mt-0.5">Nuevo</Text>
+              <Ionicons name="add-circle" size={20} color="#3b82f6" />
+              <Text className="text-blue-400 text-[12px] font-semibold mt-0.5">Nuevo</Text>
             </Pressable>
           </ScrollView>
         </View>
@@ -528,12 +528,27 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
         ) : (
           <View className="pb-6">
             <View className="mb-5">
-              <View className="flex-row items-start gap-2">
-                <View className="w-[76px] items-center pt-1">
+              <View className="flex-row justify-between items-center gap-3 mb-2">
+                <Text className="text-slate-500 text-xs font-bold uppercase shrink">
+                  Nombre del día
+                </Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    setModalEliminarDia({ diaId: diaActivo.id_temp, diaNombre: diaActivo.nombre })
+                  }
+                  className="shrink-0 px-2.5 py-1.5 rounded-lg bg-red-500/15 border border-red-500/35 active:opacity-80"
+                  activeOpacity={0.85}
+                >
+                  <Text className="text-red-400 font-semibold text-xs">Eliminar día</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View className="flex-row items-stretch gap-2">
+                <View className="shrink-0 w-11 justify-center items-center gap-0.5 py-0.5">
                   <Pressable
                     onPress={() => moverDiaEnRutina(diaActivo.id_temp, -1)}
                     disabled={!puedeSubirDiaEnRutina}
-                    className={`p-2 rounded-lg ${puedeSubirDiaEnRutina ? "active:bg-slate-800" : "opacity-25"}`}
+                    className={`p-1.5 rounded-lg ${puedeSubirDiaEnRutina ? "active:bg-slate-800" : "opacity-25"}`}
                     accessibilityLabel="Subir día en la rutina"
                     accessibilityRole="button"
                   >
@@ -542,18 +557,17 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
                   <Pressable
                     onPress={() => moverDiaEnRutina(diaActivo.id_temp, 1)}
                     disabled={!puedeBajarDiaEnRutina}
-                    className={`p-2 rounded-lg ${puedeBajarDiaEnRutina ? "active:bg-slate-800" : "opacity-25"}`}
+                    className={`p-1.5 rounded-lg ${puedeBajarDiaEnRutina ? "active:bg-slate-800" : "opacity-25"}`}
                     accessibilityLabel="Bajar día en la rutina"
                     accessibilityRole="button"
                   >
                     <Ionicons name="chevron-down" size={22} color="#94a3b8" />
                   </Pressable>
- 
                 </View>
+
                 <View className="flex-1 min-w-0">
-                  <Text className="text-slate-500 text-xs font-bold uppercase mb-1">Nombre del día</Text>
                   <View className="flex-row rounded-xl border border-slate-700 bg-slate-800/90 overflow-hidden min-h-[52px]">
-                    <View className="justify-center px-3 py-2 bg-slate-900/85 border-r border-slate-700 min-w-[72px]">
+                    <View className="justify-center px-3 py-2 bg-slate-900/85 border-r border-slate-700 shrink-0 min-w-[72px]">
                       <Text className="text-slate-500 text-[9px] font-bold uppercase">Orden</Text>
                       <Text className="text-blue-400 font-bold text-xl tabular-nums leading-tight">
                         Día {indiceDiaActivo + 1}
@@ -561,7 +575,7 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
                       <Text className="text-slate-600 text-[9px] mt-0.5">de {rutina.dias.length}</Text>
                     </View>
                     <TextInput
-                      className="flex-1 text-white text-lg font-semibold px-3 py-2 min-h-[52px]"
+                      className="flex-1 min-w-0 text-white text-lg font-semibold px-3 py-2 min-h-[52px]"
                       value={diaActivo.nombre}
                       onChangeText={(txt) =>
                         setRutina((prev) => ({
@@ -575,20 +589,9 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
                       placeholderTextColor="#64748b"
                     />
                   </View>
-                  <Text className="text-[9px] text-slate-500 text-center leading-3 mt-1 px-0.5">
-                    Pulsa ↑ o ↓ para subir o bajar este día en la rutina.
+                  <Text className="text-[10px] text-slate-600 mt-1.5 leading-4">
+                    Pulsa ↑ o ↓ para reordenar el día en la rutina. «Día N» es la posición actual.
                   </Text>
-                  <View className="flex-row justify-end mt-2">
-                    <TouchableOpacity
-                      onPress={() =>
-                        setModalEliminarDia({ diaId: diaActivo.id_temp, diaNombre: diaActivo.nombre })
-                      }
-                      className="px-3 py-2 rounded-xl bg-red-500/15 border border-red-500/35 active:opacity-80"
-                      activeOpacity={0.85}
-                    >
-                      <Text className="text-red-400 font-semibold text-sm">Eliminar día</Text>
-                    </TouchableOpacity>
-                  </View>
                 </View>
               </View>
             </View>
