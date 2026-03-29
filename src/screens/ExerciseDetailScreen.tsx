@@ -192,7 +192,10 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
                         key={s.id}
                         className="bg-slate-900/70 px-3 py-2.5 rounded-xl border border-slate-700/80 flex-row justify-between items-center"
                       >
-                        <Text className="text-slate-400 text-sm">Serie {s.serieOrden}</Text>
+                        <Text className="text-slate-400 text-sm">
+                          Serie {s.serieOrden}
+                          {s.esDropset ? " · dropset" : ""}
+                        </Text>
                         <Text className="text-slate-100 font-mono text-sm">
                           {s.reps} reps @ {s.peso} kg
                         </Text>
@@ -210,8 +213,9 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
             >
               <Text className="text-slate-400 text-sm leading-5 mb-4">
                 En fuerza suele compararse el progreso por sesión usando una sola cifra: el peso máximo movido, el volumen
-                total (suma de reps × kg) o las reps de la serie más pesada. Elige la métrica y lee la tendencia en el
-                tiempo (eje horizontal = orden cronológico de entrenos).
+                total (suma de reps × kg) o las reps de la serie más pesada. Los dropsets cuentan en el volumen y en el
+                peso máximo de la sesión como series adicionales. Elige la métrica y lee la tendencia en el tiempo (eje
+                horizontal = orden cronológico de entrenos).
               </Text>
               <Text className="text-slate-500 text-xs font-bold uppercase mb-2">Métrica</Text>
               <View className="flex-row flex-wrap gap-2 mb-6">
@@ -315,7 +319,10 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
                         key={s.id}
                         className="bg-slate-900/80 px-3 py-2.5 rounded-xl border border-slate-700 flex-row justify-between items-center"
                       >
-                        <Text className="text-slate-400 text-sm">Serie {s.serieOrden}</Text>
+                        <Text className="text-slate-400 text-sm">
+                          Serie {s.serieOrden}
+                          {s.esDropset ? " · dropset" : ""}
+                        </Text>
                         <Text className="text-slate-100 font-mono text-sm">
                           {s.reps} reps × {s.peso} kg
                         </Text>

@@ -19,6 +19,7 @@ import { RootStackParamList } from "@/navigation/types";
 import { getEjerciciosConSeriesParaEntreno } from "@/services/rutina/rutinasService";
 import {
   actualizarSerieRealizada,
+  añadirDropsetTrasSerie,
   añadirSerieAlEntrenamiento,
   eliminarSerieRealizada,
   eliminarEntrenamientoFinalizado,
@@ -70,11 +71,13 @@ function SerieRowEditor({
   onAskDelete,
 }: {
   row: SerieRealizadaRow;
+  /** Solo la serie principal se compara con el objetivo de la rutina */
   objetivoMeta?: { reps: string; peso: string } | null;
   editable: boolean;
   onRemoved: () => void;
   onAskDelete: () => void;
 }) {
+  const esDropset = (row.esDropset ?? 0) === 1;
   const [reps, setReps] = useState(String(row.repeticiones));
   const [peso, setPeso] = useState(String(row.peso));
   const [syncing, setSyncing] = useState(false);
@@ -129,13 +132,19 @@ function SerieRowEditor({
   const pTry = parseFloat(String(peso).replace(",", "."));
   const effRep = Number.isFinite(rTry) && rTry > 0 ? rTry : row.repeticiones;
   const effPeso = Number.isFinite(pTry) ? pTry : row.peso;
-  const comp = objetivoMeta ? comparativaObjetivoReal(objetivoMeta, effRep, effPeso) : null;
+  const comp = !esDropset && objetivoMeta ? comparativaObjetivoReal(objetivoMeta, effRep, effPeso) : null;
 
   return (
     <View className="mb-2">
-      <View className="flex-row items-center gap-2 bg-slate-900/60 p-2 rounded-xl border border-slate-700/80">
+      <View
+        className={`flex-row items-center gap-2 bg-slate-900/60 p-2 rounded-xl border ${
+          esDropset ? "border-violet-600/45" : "border-slate-700/80"
+        }`}
+      >
         <View className="w-9 items-center">
-          <Text className="text-slate-500 font-bold text-sm">{row.serieOrden}</Text>
+          <Text className={`font-bold text-sm ${esDropset ? "text-violet-400" : "text-slate-500"}`}>
+            {esDropset ? "↓" : row.serieOrden}
+          </Text>
           {syncing && editable ? (
             <ActivityIndicator size="small" color="#64748b" style={{ marginTop: 2 }} />
           ) : null}
@@ -176,10 +185,12 @@ function SerieRowEditor({
           </>
         )}
       </View>
-      {objetivoMeta ? (
+      {!esDropset && objetivoMeta ? (
         <Text className="text-slate-500 text-xs mt-1 ml-1">
           Objetivo: {objetivoMeta.reps} reps · {objetivoMeta.peso} kg · Registrado: {effRep} reps · {effPeso} kg
         </Text>
+      ) : esDropset ? (
+        <Text className="text-violet-400/80 text-xs mt-1 ml-1">Dropset: menos peso o más reps tras llegar al fallo.</Text>
       ) : null}
       {comp ? (
         <Text className={`text-xs mt-1 ml-1 ${comp.ok ? "text-emerald-400" : "text-amber-400/90"}`}>{comp.texto}</Text>
@@ -238,6 +249,9 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
   } | null>(null);
   const [serieDeleteId, setSerieDeleteId] = useState<number | null>(null);
   const [modalEliminarHistorial, setModalEliminarHistorial] = useState(false);
+  const [dropsetTarget, setDropsetTarget] = useState<null | { ejercicioId: number; orden: number }>(null);
+  const [dropsetReps, setDropsetReps] = useState("");
+  const [dropsetPeso, setDropsetPeso] = useState("");
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -332,6 +346,48 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
       setDialogApp({
         title: "Error",
         message: "No se pudo registrar la serie.",
+        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
+      });
+    }
+  };
+
+  const guardarDropset = async () => {
+    if (!entrenamientoId || !dropsetTarget || finalizado) return;
+    const r = parseInt(String(dropsetReps).trim(), 10);
+    const p = parseFloat(String(dropsetPeso).replace(",", "."));
+    if (!Number.isFinite(r) || r <= 0) {
+      setDialogApp({
+        title: "Reps",
+        message: "Indica un número de repeticiones válido (> 0).",
+        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
+      });
+      return;
+    }
+    if (!Number.isFinite(p) || p < 0) {
+      setDialogApp({
+        title: "Peso",
+        message: "Indica un peso válido (0 o más).",
+        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
+      });
+      return;
+    }
+    try {
+      await añadirDropsetTrasSerie(
+        entrenamientoId,
+        dropsetTarget.ejercicioId,
+        dropsetTarget.orden,
+        r,
+        p
+      );
+      setDropsetTarget(null);
+      setDropsetReps("");
+      setDropsetPeso("");
+      await cargar();
+    } catch (e) {
+      console.error(e);
+      setDialogApp({
+        title: "No se pudo añadir el dropset",
+        message: e instanceof Error ? e.message : "Intenta de nuevo.",
         actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
       });
     }
@@ -456,9 +512,125 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
         </View>
 
         {ejercicios.map((ex, ei) => {
-          const extras = ex.series
-            .filter((s) => s.serieOrden > ex.seriesPlantilla.length)
-            .sort((a, b) => a.serieOrden - b.serieOrden);
+          const maxPlant = ex.seriesPlantilla.length;
+          const ordenesExtra = [
+            ...new Set(ex.series.filter((s) => s.serieOrden > maxPlant).map((s) => s.serieOrden)),
+          ].sort((a, b) => a - b);
+
+          const renderBloqueSerie = (orden: number, meta: { reps: string; peso: string } | null, esExtra: boolean) => {
+            const main = ex.series.find((s) => s.serieOrden === orden && (s.esDropset ?? 0) === 0);
+            const dropsOrden = ex.series
+              .filter((s) => s.serieOrden === orden && (s.esDropset ?? 0) === 1)
+              .sort((a, b) => a.id - b.id);
+            const abriendoDropset =
+              dropsetTarget?.ejercicioId === ex.ejercicioId && dropsetTarget.orden === orden;
+
+            return (
+              <View key={`bloque-${ex.ejercicioId}-${orden}`} className="mb-1">
+                {!main ? (
+                  <SlotSinRegistrar
+                    orden={orden}
+                    plant={meta ?? { reps: "10", peso: "0" }}
+                    editable={editable}
+                    onRegistrar={() => void registrarSeriePlantilla(ex, orden)}
+                  />
+                ) : (
+                  <>
+                    <Text className="text-slate-500 text-xs mb-1 ml-1">
+                      {esExtra ? `Serie extra ${orden}` : `Serie ${orden}`}
+                    </Text>
+                    {meta ? (
+                      <Text className="text-amber-500/95 text-xs font-semibold mb-1 ml-1">
+                        Objetivo rutina{esExtra ? " (si aplica)" : ""}: {meta.reps} reps · {meta.peso} kg
+                      </Text>
+                    ) : (
+                      <Text className="text-slate-500 text-xs mb-1 ml-1">Serie adicional</Text>
+                    )}
+                    <SerieRowEditor
+                      row={main}
+                      objetivoMeta={meta}
+                      editable={editable}
+                      onRemoved={() => void cargar()}
+                      onAskDelete={() => setSerieDeleteId(main.id)}
+                    />
+                    {dropsOrden.map((ds) => (
+                      <View key={ds.id} className="mt-1 ml-1">
+                        <Text className="text-violet-400/90 text-[10px] font-bold uppercase mb-0.5">Dropset</Text>
+                        <SerieRowEditor
+                          row={ds}
+                          objetivoMeta={null}
+                          editable={editable}
+                          onRemoved={() => void cargar()}
+                          onAskDelete={() => setSerieDeleteId(ds.id)}
+                        />
+                      </View>
+                    ))}
+                    {editable ? (
+                      abriendoDropset ? (
+                        <View className="mt-2 ml-1 p-3 bg-violet-950/35 border border-violet-700/50 rounded-xl">
+                          <Text className="text-violet-200 text-xs font-semibold mb-2">
+                            Nuevo dropset (reps y kg tras reducir peso o al fallo)
+                          </Text>
+                          <View className="flex-row gap-2">
+                            <TextInput
+                              className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/50"
+                              keyboardType="number-pad"
+                              placeholder="Reps"
+                              placeholderTextColor="#6b21a8"
+                              value={dropsetReps}
+                              onChangeText={setDropsetReps}
+                            />
+                            <TextInput
+                              className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/50"
+                              keyboardType="decimal-pad"
+                              placeholder="Kg"
+                              placeholderTextColor="#6b21a8"
+                              value={dropsetPeso}
+                              onChangeText={setDropsetPeso}
+                            />
+                          </View>
+                          <View className="flex-row gap-2 mt-3">
+                            <TouchableOpacity
+                              className="flex-1 py-2.5 rounded-lg bg-violet-600 border border-violet-500"
+                              onPress={() => void guardarDropset()}
+                              activeOpacity={0.85}
+                            >
+                              <Text className="text-white text-center font-bold">Guardar dropset</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              className="flex-1 py-2.5 rounded-lg bg-slate-700 border border-slate-600"
+                              onPress={() => {
+                                setDropsetTarget(null);
+                                setDropsetReps("");
+                                setDropsetPeso("");
+                              }}
+                              activeOpacity={0.85}
+                            >
+                              <Text className="text-slate-200 text-center font-semibold">Cancelar</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          className="mt-2 py-2 px-2 rounded-lg border border-violet-800/60 bg-violet-950/20"
+                          onPress={() => {
+                            setDropsetTarget({ ejercicioId: ex.ejercicioId, orden });
+                            setDropsetReps("");
+                            setDropsetPeso("");
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <Text className="text-violet-300 text-center text-sm font-semibold">
+                            + Añadir dropset a esta serie
+                          </Text>
+                        </TouchableOpacity>
+                      )
+                    ) : null}
+                  </>
+                )}
+              </View>
+            );
+          };
 
           return (
             <View key={`${ex.ejercicioId}-${ei}`} className="bg-slate-800/80 rounded-2xl p-4 mb-4 border border-slate-700">
@@ -466,58 +638,13 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
 
               {ex.seriesPlantilla.map((plant, idx) => {
                 const orden = idx + 1;
-                const real = ex.series.find((s) => s.serieOrden === orden);
                 const meta = { reps: plant.reps, peso: plant.peso };
-
-                return (
-                  <View key={`slot-${orden}`} className="mb-1">
-                    {!real ? (
-                      <SlotSinRegistrar
-                        orden={orden}
-                        plant={plant}
-                        editable={editable}
-                        onRegistrar={() => void registrarSeriePlantilla(ex, orden)}
-                      />
-                    ) : (
-                      <>
-                        <Text className="text-slate-500 text-xs mb-1 ml-1">Serie {orden}</Text>
-                        <Text className="text-amber-500/95 text-xs font-semibold mb-1 ml-1">
-                          Objetivo rutina: {meta.reps} reps · {meta.peso} kg
-                        </Text>
-                        <SerieRowEditor
-                          row={real}
-                          objetivoMeta={meta}
-                          editable={editable}
-                          onRemoved={() => void cargar()}
-                          onAskDelete={() => setSerieDeleteId(real.id)}
-                        />
-                      </>
-                    )}
-                  </View>
-                );
+                return renderBloqueSerie(orden, meta, false);
               })}
 
-              {extras.map((row) => {
-                const meta = objetivoParaOrden(ex, row.serieOrden);
-                return (
-                  <View key={`extra-${row.id}`}>
-                    <Text className="text-slate-500 text-xs mb-1 ml-1 mt-2">Serie extra {row.serieOrden}</Text>
-                    {meta ? (
-                      <Text className="text-amber-500/90 text-xs mb-1 ml-1">
-                        Objetivo rutina (si aplica): {meta.reps} reps · {meta.peso} kg
-                      </Text>
-                    ) : (
-                      <Text className="text-slate-500 text-xs mb-1 ml-1">Serie adicional</Text>
-                    )}
-                    <SerieRowEditor
-                      row={row}
-                      objetivoMeta={meta}
-                      editable={editable}
-                      onRemoved={() => void cargar()}
-                      onAskDelete={() => setSerieDeleteId(row.id)}
-                    />
-                  </View>
-                );
+              {ordenesExtra.map((orden) => {
+                const meta = objetivoParaOrden(ex, orden);
+                return renderBloqueSerie(orden, meta, true);
               })}
 
               {editable ? (

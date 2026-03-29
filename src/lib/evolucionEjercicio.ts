@@ -18,7 +18,11 @@ function parseFecha(a: string, b: string): number {
 
 /**
  * Agrupa el historial plano en una serie temporal por entreno.
- * Convención habitual en fuerza: comparar sesiones por peso máximo, volumen o “mejor serie”.
+ *
+ * **Dropsets:** cada fila del historial (principal o dropset) cuenta como una serie con su peso y reps.
+ * - **Volumen total:** suma de `reps × kg` de **todas** las filas (principal + dropsets), volumen real del trabajo.
+ * - **Peso máximo:** el mayor `kg` entre todas las filas (suele ser la serie principal).
+ * - **Reps (serie más pesada):** repeticiones de la fila que alcanza ese peso máximo; si hay empate en kg, gana la de más reps.
  */
 export function puntosEvolucionPorSesion(rows: HistorialEjercicioFila[]): PuntoEvolucionEjercicio[] {
   const byEntreno = new Map<number, HistorialEjercicioFila[]>();

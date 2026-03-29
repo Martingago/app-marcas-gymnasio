@@ -119,10 +119,14 @@ export default function SessionDetailScreen({ route, navigation }: Props) {
               <View className="p-3 gap-2">
                 {bloque.series.map((s) => (
                   <View
-                    key={`${bloque.ejercicioId}-${s.serieOrden}-${s.reps}-${s.peso}`}
-                    className="bg-slate-900/70 px-3 py-2.5 rounded-xl border border-slate-700/80 flex-row justify-between items-center"
+                    key={s.id}
+                    className={`bg-slate-900/70 px-3 py-2.5 rounded-xl border flex-row justify-between items-center ${
+                      s.esDropset ? "border-violet-600/50 ml-3" : "border-slate-700/80"
+                    }`}
                   >
-                    <Text className="text-slate-400 text-sm">Serie {s.serieOrden}</Text>
+                    <Text className="text-slate-400 text-sm">
+                      {s.esDropset ? `Serie ${s.serieOrden} · dropset` : `Serie ${s.serieOrden}`}
+                    </Text>
                     <Text className="text-slate-100 font-mono text-sm">
                       {s.reps} reps @ {s.peso} kg
                     </Text>

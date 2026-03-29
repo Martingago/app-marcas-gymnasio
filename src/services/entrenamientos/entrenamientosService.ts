@@ -4,7 +4,7 @@ import { series } from "@/db/schema/series";
 import { rutinaDias } from "@/db/schema/rutina/rutinaDias";
 import { rutinas } from "@/db/schema/rutina/rutina";
 import { ejercicios } from "@/db/schema/ejercicios";
-import { eq, asc, desc, sql, and, gt, max } from "drizzle-orm";
+import { eq, asc, desc, sql, and, gt, max, or, isNull } from "drizzle-orm";
 
 /** Ya hay un entreno sin finalizar en otro día de la misma rutina */
 export const ERROR_OTRO_DIA_ACTIVO = "ERROR_OTRO_DIA_ACTIVO";
@@ -185,6 +185,8 @@ export type SerieRealizadaRow = {
   serieOrden: number;
   repeticiones: number;
   peso: number;
+  /** 0 = serie principal; 1 = dropset tras esa misma serieOrden */
+  esDropset: number;
 };
 
 export const getSeriesDelEntrenamiento = async (
@@ -197,10 +199,11 @@ export const getSeriesDelEntrenamiento = async (
       serieOrden: series.serieOrden,
       repeticiones: series.repeticiones,
       peso: series.peso,
+      esDropset: series.esDropset,
     })
     .from(series)
     .where(eq(series.entrenamientoId, entrenamientoId))
-    .orderBy(asc(series.ejercicioId), asc(series.serieOrden));
+    .orderBy(asc(series.ejercicioId), asc(series.serieOrden), asc(series.esDropset), asc(series.id));
 
   return rows.map((r) => ({
     id: r.id,
@@ -208,6 +211,7 @@ export const getSeriesDelEntrenamiento = async (
     serieOrden: r.serieOrden,
     repeticiones: r.repeticiones,
     peso: r.peso,
+    esDropset: r.esDropset ?? 0,
   }));
 };
 
@@ -230,7 +234,8 @@ export const añadirSerieAlEntrenamiento = async (
         and(
           eq(series.entrenamientoId, entrenamientoId),
           eq(series.ejercicioId, ejercicioId),
-          eq(series.serieOrden, orden)
+          eq(series.serieOrden, orden),
+          or(eq(series.esDropset, 0), isNull(series.esDropset))
         )
       )
       .limit(1);
@@ -269,6 +274,52 @@ export const añadirSerieAlEntrenamiento = async (
     })
     .returning({ id: series.id });
 
+  return row.id;
+};
+
+/**
+ * Añade un dropset con la misma `serieOrden` que la serie principal (mismo hueco de plantilla o serie extra).
+ * Debe existir ya la fila principal (es_dropset = 0).
+ */
+export const añadirDropsetTrasSerie = async (
+  entrenamientoId: number,
+  ejercicioId: number,
+  serieOrden: number,
+  repeticiones: number,
+  peso: number
+): Promise<number> => {
+  await assertEntrenoEditable(entrenamientoId);
+
+  const [main] = await db
+    .select({ id: series.id })
+    .from(series)
+    .where(
+      and(
+        eq(series.entrenamientoId, entrenamientoId),
+        eq(series.ejercicioId, ejercicioId),
+        eq(series.serieOrden, serieOrden),
+        or(eq(series.esDropset, 0), isNull(series.esDropset))
+      )
+    )
+    .limit(1);
+
+  if (!main) {
+    throw new Error("Registra primero la serie principal antes de añadir un dropset.");
+  }
+
+  const [row] = await db
+    .insert(series)
+    .values({
+      entrenamientoId,
+      ejercicioId,
+      serieOrden,
+      repeticiones,
+      peso,
+      esDropset: 1,
+    })
+    .returning({ id: series.id });
+
+  if (!row) throw new Error("No se pudo insertar el dropset.");
   return row.id;
 };
 
@@ -312,6 +363,7 @@ export interface HistorialEjercicioFila {
   reps: number;
   peso: number;
   serieOrden: number;
+  esDropset: number;
 }
 
 export const getHistorialPorEjercicio = async (
@@ -328,6 +380,7 @@ export const getHistorialPorEjercicio = async (
       reps: series.repeticiones,
       peso: series.peso,
       serieOrden: series.serieOrden,
+      esDropset: series.esDropset,
     })
     .from(series)
     .innerJoin(entrenamientos, eq(series.entrenamientoId, entrenamientos.id))
@@ -337,7 +390,13 @@ export const getHistorialPorEjercicio = async (
       sql`${rutinas.id} = COALESCE(${entrenamientos.rutinaId}, ${rutinaDias.rutinaId})`
     )
     .where(and(eq(series.ejercicioId, ejercicioId), eq(entrenamientos.finalizado, 1)))
-    .orderBy(desc(entrenamientos.fecha), desc(entrenamientos.id), asc(series.serieOrden))
+    .orderBy(
+      desc(entrenamientos.fecha),
+      desc(entrenamientos.id),
+      asc(series.serieOrden),
+      asc(series.esDropset),
+      asc(series.id)
+    )
     .limit(limite);
 
   return rows.map((r) => ({
@@ -349,15 +408,18 @@ export const getHistorialPorEjercicio = async (
     reps: r.reps,
     peso: r.peso,
     serieOrden: r.serieOrden,
+    esDropset: r.esDropset ?? 0,
   }));
 };
 
 export type DetalleSesionSerie = {
+  id: number;
   ejercicioId: number;
   ejercicioNombre: string;
   reps: number;
   peso: number;
   serieOrden: number;
+  esDropset: number;
 };
 
 export interface SesionRutinaResumen {
@@ -440,20 +502,30 @@ export const getDetalleSesion = async (entrenamientoId: number) => {
 
   const sets = await db
     .select({
+      id: series.id,
       ejercicioId: ejercicios.id,
       ejercicioNombre: ejercicios.nombre,
       reps: series.repeticiones,
       peso: series.peso,
       serieOrden: series.serieOrden,
+      esDropset: series.esDropset,
     })
     .from(series)
     .innerJoin(ejercicios, eq(series.ejercicioId, ejercicios.id))
     .where(eq(series.entrenamientoId, entrenamientoId))
-    .orderBy(asc(ejercicios.id), asc(series.serieOrden));
+    .orderBy(asc(ejercicios.id), asc(series.serieOrden), asc(series.esDropset), asc(series.id));
 
   return {
     cabecera: cab[0] ?? null,
-    series: sets as DetalleSesionSerie[],
+    series: sets.map((r) => ({
+      id: r.id,
+      ejercicioId: r.ejercicioId,
+      ejercicioNombre: r.ejercicioNombre,
+      reps: r.reps,
+      peso: r.peso,
+      serieOrden: r.serieOrden,
+      esDropset: r.esDropset ?? 0,
+    })),
   };
 };
 
