@@ -1,29 +1,40 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useState } from "react";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, TextInput } from "react-native";
 import { useCategorias } from '@/hooks/useCategorias';
 import { useEjercicios } from '@/hooks/useEjercicios';
 import ExerciseList from '@/components/ejercicios/ExerciseList';
 import { Ejercicio } from '@/interfaces/ejercicio';
 
 // Importamos los modales
-import { OptionsModal, DeleteModal, FormModal } from '@/components/modals/ExerciseModals';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '@/navigation/types';
+import { OptionsModal, DeleteModal, FormModal } from "@/components/modals/ExerciseModals";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { RootStackParamList } from "@/navigation/types";
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Exercises'>;
+const buscadorInputStyle = {
+  backgroundColor: "#1e293b",
+  color: "#f8fafc",
+  borderWidth: 1,
+  borderColor: "#64748b",
+  borderRadius: 12,
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  fontSize: 16,
+} as const;
+
+type Props = NativeStackScreenProps<RootStackParamList, "Exercises">;
 
 export default function ExercisesScreen({ navigation }: Props) {
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null);
-  
-  // Estados para controlar Modales
+  const [busqueda, setBusqueda] = useState("");
+
   const [ejercicioSeleccionado, setEjercicioSeleccionado] = useState<Ejercicio | null>(null);
   const [isOptionsVisible, setOptionsVisible] = useState(false);
-  const[isDeleteVisible, setDeleteVisible] = useState(false);
-  const[isFormVisible, setFormVisible] = useState(false);
+  const [isDeleteVisible, setDeleteVisible] = useState(false);
+  const [isFormVisible, setFormVisible] = useState(false);
 
   const { categorias } = useCategorias();
-  const { ejercicios, loading, agregar, editar, eliminar } = useEjercicios(categoriaActiva);
+  const { ejercicios, loading, agregar, editar, eliminar } = useEjercicios(categoriaActiva, busqueda);
 
   // --- LÓGICA DE MANEJO DE EVENTOS ---
   const handleOpenOptions = (ejercicio: Ejercicio) => {
@@ -36,11 +47,11 @@ export default function ExercisesScreen({ navigation }: Props) {
     setFormVisible(true);
   };
 
-  const handleSaveForm = async (data: any) => {
-    if (ejercicioSeleccionado) {
-      await editar(data); // Modo Editar
+  const handleSaveForm = async (data: { id?: number; nombre: string; categoria_id: number | null }) => {
+    if (ejercicioSeleccionado != null && data.id != null) {
+      await editar({ id: data.id, nombre: data.nombre, categoria_id: data.categoria_id });
     } else {
-      await agregar(data); // Modo Añadir
+      await agregar({ nombre: data.nombre, categoria_id: data.categoria_id });
     }
   };
 
@@ -81,9 +92,24 @@ export default function ExercisesScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      <Text className="text-white text-2xl font-bold mb-4">
-        {categoriaActiva === null ? 'Todos los ejercicios' : `Ejercicios de ${categorias.find(c => c.id === categoriaActiva)?.nombre}`}
+      <Text className="text-white text-2xl font-bold mb-3">
+        {categoriaActiva === null ? "Todos los ejercicios" : `Ejercicios de ${categorias.find((c) => c.id === categoriaActiva)?.nombre}`}
       </Text>
+
+      <Text className="text-slate-500 text-xs font-bold uppercase mb-2">Buscar</Text>
+      <View className="mb-4">
+        <TextInput
+          style={buscadorInputStyle}
+          placeholder="Buscar por nombre…"
+          placeholderTextColor="#94a3b8"
+          value={busqueda}
+          onChangeText={setBusqueda}
+          autoCorrect={false}
+          autoCapitalize="none"
+          clearButtonMode="while-editing"
+          underlineColorAndroid="transparent"
+        />
+      </View>
 
       {loading ? (
         <ActivityIndicator size="large" color="#3b82f6" className="mt-10" />
@@ -98,16 +124,17 @@ export default function ExercisesScreen({ navigation }: Props) {
       {/* --- RENDERIZADO DE MODALES --- */}
       
       {/* Modal de Toast de Opciones */}
-      <OptionsModal 
-        visible={isOptionsVisible} 
+      <OptionsModal
+        visible={isOptionsVisible}
         onClose={() => setOptionsVisible(false)}
+        nombreEjercicio={ejercicioSeleccionado?.nombre}
         onEdit={() => {
           setOptionsVisible(false);
-          setFormVisible(true); // Abre el formulario con el ejercicioSeleccionado
+          setFormVisible(true);
         }}
         onDelete={() => {
           setOptionsVisible(false);
-          setDeleteVisible(true); // Abre confirmación de borrado
+          setDeleteVisible(true);
         }}
       />
 
