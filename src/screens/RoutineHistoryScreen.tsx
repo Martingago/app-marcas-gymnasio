@@ -136,8 +136,17 @@ export default function RoutineHistoryScreen({ navigation, route }: Props) {
           )}
         />
       ) : tab === "calendario" ? (
-        <ScrollView className="flex-1 px-4 pt-4" contentContainerStyle={{ paddingBottom: 32 }}>
-          <ContributionGrid fechasConEntreno={fechasEntreno} />
+        <ScrollView
+          className="flex-1 px-4 pt-4"
+          contentContainerStyle={{ paddingBottom: 32, alignItems: "stretch" }}
+        >
+          <ContributionGrid
+            fechasConEntreno={fechasEntreno}
+            sesiones={sesiones}
+            onAbrirSesion={(entrenamientoId) =>
+              navigation.navigate("SessionDetail", { entrenamientoId })
+            }
+          />
         </ScrollView>
       ) : (
         <ScrollView className="flex-1 px-4 pt-4" contentContainerStyle={{ paddingBottom: 32 }}>

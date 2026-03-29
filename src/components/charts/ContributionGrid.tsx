@@ -1,13 +1,32 @@
-import React, { useMemo } from "react";
-import { View, Text, ScrollView } from "react-native";
+import React, { useMemo, useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  Modal,
+  Pressable,
+  TouchableOpacity,
+  ScrollView,
+  useWindowDimensions,
+} from "react-native";
 
-const CELL = 11;
-const GAP = 3;
+import type { SesionRutinaResumen } from "@/services/entrenamientos/entrenamientosService";
+
+const GAP = 2;
 const WEEKS = 18;
+const LABEL_COL = 28;
+const LABEL_MARGIN = 4;
+/** Celdas nunca más pequeñas que esto (px); si no caben, la cuadrícula hace scroll horizontal */
+const MIN_CELL_SIZE = 12;
+
+const COL_EMPTY = "#1e293b";
+const COL_L1 = "#064e3b";
+const COL_L2 = "#047857";
+const COL_L3 = "#22c55e";
 
 type Props = {
-  /** Fechas ISO yyyy-mm-dd con al menos un entreno */
   fechasConEntreno: string[];
+  sesiones: SesionRutinaResumen[];
+  onAbrirSesion: (entrenamientoId: number) => void;
 };
 
 function startOfWeekMonday(d: Date): Date {
@@ -32,8 +51,71 @@ function toIso(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/** Intensidad 0–3 según entrenos ese día (misma rutina puede tener varios en teoría) */
-export default function ContributionGrid({ fechasConEntreno }: Props) {
+function fechaLegible(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function colorHex(count: number): string {
+  if (count <= 0) return COL_EMPTY;
+  if (count === 1) return COL_L1;
+  if (count === 2) return COL_L2;
+  return COL_L3;
+}
+
+/** Ancho útil para la cuadrícula (solo columnas de días), 1:1, ocupando todo `gridAvail` si cabe */
+function computeCellAndGridWidth(gridAvail: number): { cellSize: number; gridWidth: number; needsScroll: boolean } {
+  const gapsTotal = (WEEKS - 1) * GAP;
+  const idealCell = (gridAvail - gapsTotal) / WEEKS;
+
+  if (idealCell >= MIN_CELL_SIZE) {
+    const cellSize = idealCell;
+    const gridWidth = WEEKS * cellSize + gapsTotal;
+    return { cellSize, gridWidth, needsScroll: false };
+  }
+
+  const cellSize = MIN_CELL_SIZE;
+  const gridWidth = WEEKS * cellSize + gapsTotal;
+  return { cellSize, gridWidth, needsScroll: gridWidth > gridAvail + 0.5 };
+}
+
+export default function ContributionGrid({ fechasConEntreno, sesiones, onAbrirSesion }: Props) {
+  const { width: screenW } = useWindowDimensions();
+  const [measuredW, setMeasuredW] = useState(0);
+
+  const onRootLayout = useCallback((e: { nativeEvent: { layout: { width: number } } }) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0) {
+      setMeasuredW((prev) => (Math.abs(prev - w) < 0.5 ? prev : w));
+    }
+  }, []);
+
+  const usableWidth = measuredW > 8 ? measuredW : Math.max(240, screenW - 32);
+  const gridAvail = Math.max(0, usableWidth - LABEL_COL - LABEL_MARGIN);
+
+  const { cellSize, gridWidth, needsScroll } = useMemo(
+    () => computeCellAndGridWidth(gridAvail),
+    [gridAvail],
+  );
+
+  const gridHeight = 7 * cellSize + 6 * GAP;
+
+  const sesionesPorFecha = useMemo(() => {
+    const m = new Map<string, SesionRutinaResumen[]>();
+    for (const s of sesiones) {
+      const arr = m.get(s.fecha) ?? [];
+      arr.push(s);
+      m.set(s.fecha, arr);
+    }
+    return m;
+  }, [sesiones]);
+
   const grid = useMemo(() => {
     const counts = new Map<string, number>();
     for (const f of fechasConEntreno) {
@@ -59,53 +141,138 @@ export default function ContributionGrid({ fechasConEntreno }: Props) {
     return weeks;
   }, [fechasConEntreno]);
 
-  const colorFor = (c: number) => {
-    if (c <= 0) return "bg-slate-800";
-    if (c === 1) return "bg-emerald-900";
-    if (c === 2) return "bg-emerald-700";
-    return "bg-emerald-500";
-  };
+  const [diaSeleccionado, setDiaSeleccionado] = useState<string | null>(null);
 
   const diasSemana = ["L", "M", "X", "J", "V", "S", "D"];
+  const legendSize = Math.max(MIN_CELL_SIZE, Math.min(14, Math.round(cellSize * 0.65)));
+
+  const listaDiaSeleccionado = diaSeleccionado ? sesionesPorFecha.get(diaSeleccionado) ?? [] : [];
+
+  const gridBody = (
+    <View className="flex-row" style={{ width: gridWidth, gap: GAP }}>
+      {grid.map((weekCol, wi) => (
+        <View key={wi} style={{ gap: GAP }}>
+          {weekCol.map((cell) => (
+            <Pressable
+              key={cell.day}
+              onPress={() => setDiaSeleccionado(cell.day)}
+              hitSlop={cellSize < 16 ? { top: 6, bottom: 6, left: 2, right: 2 } : undefined}
+              style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`${cell.day}, ${cell.count} entreno(s)`}
+            >
+              <View
+                collapsable={false}
+                style={{
+                  width: cellSize,
+                  height: cellSize,
+                  minWidth: MIN_CELL_SIZE,
+                  minHeight: MIN_CELL_SIZE,
+                  borderRadius: 3,
+                  backgroundColor: colorHex(cell.count),
+                }}
+              />
+            </Pressable>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
 
   return (
-    <View>
+    <View style={{ alignSelf: "stretch" }} onLayout={onRootLayout}>
       <Text className="text-slate-500 text-xs mb-3">
-        Últimas semanas (cada cuadro es un día; verde = entreno con esta rutina)
+        Últimas {WEEKS} semanas · Cuadrados 1:1 al ancho disponible · Toca un día para ver el detalle
       </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View className="flex-row gap-[3px]">
-          <View className="justify-between mr-1" style={{ height: 7 * (CELL + GAP) - GAP }}>
-            {diasSemana.map((d, i) => (
-              <Text key={i} className="text-slate-600 text-[9px]" style={{ lineHeight: CELL + GAP }}>
-                {d}
-              </Text>
-            ))}
-          </View>
-          {grid.map((weekCol, wi) => (
-            <View key={wi} className="gap-[3px]">
-              {weekCol.map((cell) => (
-                <View
-                  key={cell.day}
-                  className={`rounded-sm ${colorFor(cell.count)}`}
-                  style={{ width: CELL, height: CELL }}
-                  accessibilityLabel={`${cell.day}: ${cell.count} entreno(s)`}
-                />
-              ))}
+
+      <View className="flex-row items-start" style={{ alignSelf: "stretch" }}>
+        <View style={{ width: LABEL_COL, height: gridHeight, marginRight: LABEL_MARGIN, gap: GAP }}>
+          {diasSemana.map((d, i) => (
+            <View key={i} style={{ height: cellSize, minHeight: MIN_CELL_SIZE, justifyContent: "center" }} className="pr-1">
+              <Text className="text-slate-600 text-[10px] text-right">{d}</Text>
             </View>
           ))}
         </View>
-      </ScrollView>
-      <View className="flex-row items-center gap-3 mt-4">
-        <Text className="text-slate-600 text-xs">Menos</Text>
-        <View className="flex-row gap-1">
-          <View className="rounded-sm bg-slate-800" style={{ width: CELL, height: CELL }} />
-          <View className="rounded-sm bg-emerald-900" style={{ width: CELL, height: CELL }} />
-          <View className="rounded-sm bg-emerald-700" style={{ width: CELL, height: CELL }} />
-          <View className="rounded-sm bg-emerald-500" style={{ width: CELL, height: CELL }} />
-        </View>
-        <Text className="text-slate-600 text-xs">Más</Text>
+
+        {needsScroll ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ flexGrow: 0, flexShrink: 1, maxWidth: gridAvail }}
+            contentContainerStyle={{ flexGrow: 0 }}
+          >
+            {gridBody}
+          </ScrollView>
+        ) : (
+          <View style={{ width: gridWidth, flexShrink: 0 }}>{gridBody}</View>
+        )}
       </View>
+
+      <View className="flex-row items-center gap-3 mt-4 flex-wrap">
+        <Text className="text-slate-600 text-xs">Menos</Text>
+        <View className="flex-row" style={{ gap: 4 }}>
+          <View className="rounded-sm" style={{ width: legendSize, height: legendSize, backgroundColor: COL_EMPTY }} />
+          <View className="rounded-sm" style={{ width: legendSize, height: legendSize, backgroundColor: COL_L1 }} />
+          <View className="rounded-sm" style={{ width: legendSize, height: legendSize, backgroundColor: COL_L2 }} />
+          <View className="rounded-sm" style={{ width: legendSize, height: legendSize, backgroundColor: COL_L3 }} />
+        </View>
+        <Text className="text-slate-600 text-xs">Más entrenos ese día</Text>
+      </View>
+
+      <Modal
+        visible={diaSeleccionado != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDiaSeleccionado(null)}
+      >
+        <View className="flex-1 bg-black/70">
+          <Pressable className="flex-1" onPress={() => setDiaSeleccionado(null)} />
+          <View className="bg-slate-800 rounded-t-3xl border border-slate-600 border-b-0 max-h-[85%]">
+            <View className="w-12 h-1 bg-slate-600 rounded-full self-center mt-3 mb-2" />
+            <ScrollView className="px-5 pb-8 pt-2" keyboardShouldPersistTaps="handled">
+              <Text className="text-slate-500 text-xs font-bold uppercase mb-1">Día</Text>
+              <Text className="text-white text-xl font-bold capitalize mb-1">
+                {diaSeleccionado ? fechaLegible(diaSeleccionado) : ""}
+              </Text>
+              <Text className="text-slate-500 text-sm mb-5">{diaSeleccionado}</Text>
+
+              {listaDiaSeleccionado.length === 0 ? (
+                <Text className="text-slate-500 text-base leading-6">
+                  No hay entrenos registrados con esta rutina en esta fecha (día de descanso o entreno con otra rutina).
+                </Text>
+              ) : (
+                <>
+                  <Text className="text-slate-400 text-sm mb-3">
+                    {listaDiaSeleccionado.length} entreno{listaDiaSeleccionado.length === 1 ? "" : "s"} con esta rutina
+                  </Text>
+                  {listaDiaSeleccionado.map((s) => (
+                    <TouchableOpacity
+                      key={s.entrenamientoId}
+                      className="bg-slate-900/80 rounded-xl p-4 mb-3 border border-slate-700"
+                      onPress={() => {
+                        setDiaSeleccionado(null);
+                        onAbrirSesion(s.entrenamientoId);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Text className="text-emerald-400 font-semibold">{s.rutinaNombre}</Text>
+                      <Text className="text-white font-bold mt-1">{s.diaNombre ?? "Día de rutina"}</Text>
+                      <Text className="text-blue-400 text-sm mt-2">Ver detalle del entreno ›</Text>
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
+
+              <TouchableOpacity
+                className="mt-4 py-3 rounded-xl bg-slate-700"
+                onPress={() => setDiaSeleccionado(null)}
+              >
+                <Text className="text-slate-200 text-center font-semibold">Cerrar</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
