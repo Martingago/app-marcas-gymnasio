@@ -1,12 +1,14 @@
-import { db } from "@/database";
-import { categorias } from "@/db/schema/categorias";
-import { ejercicios } from "@/db/schema/ejercicios";
+import type { ExpoSQLiteDatabase } from "drizzle-orm/expo-sqlite";
 import { count } from "drizzle-orm";
 
-export const seedDatabase = async () => {
+import * as schema from "@/db/schema";
+import { categorias } from "@/db/schema/categorias";
+import { ejercicios } from "@/db/schema/ejercicios";
+
+export const seedDatabase = async (database: ExpoSQLiteDatabase<typeof schema>) => {
   try {
     // 1. Comprobamos si ya existen categorías
-    const resultado = await db.select({ valor: count() }).from(categorias);
+    const resultado = await database.select({ valor: count() }).from(categorias);
     const numeroCategorias = resultado[0].valor;
 
     if (numeroCategorias > 0) {
@@ -18,7 +20,7 @@ export const seedDatabase = async () => {
 
     // 2. Insertamos las categorías y pedimos que nos devuelva las filas creadas
     // Así sabremos qué ID le ha asignado SQLite a cada una.
-    const categoriasInsertadas = await db
+    const categoriasInsertadas = await database
       .insert(categorias)
       .values([
         { nombre: "Pecho" },
@@ -71,7 +73,7 @@ export const seedDatabase = async () => {
     ];
 
     // 5. Insertamos todos los ejercicios de golpe (Bulk Insert)
-    await db.insert(ejercicios).values(ejerciciosPorDefecto);
+    await database.insert(ejercicios).values(ejerciciosPorDefecto);
 
     console.log("✅ Datos por defecto insertados correctamente.");
   } catch (error) {
