@@ -6,7 +6,10 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "build:android:apk": "eas build --platform android --profile preview",
+    "build:android:store": "eas build --platform android --profile production"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -30,6 +33,7 @@
   "devDependencies": {
     "@types/react": "~19.1.10",
     "drizzle-kit": "^0.31.10",
+    "eas-cli": "^16.0.0",
     "typescript": "~5.9.2"
   },
   "private": true
