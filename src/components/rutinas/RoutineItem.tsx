@@ -75,12 +75,20 @@ function buildDiasDetalle(
 
 interface Props {
   rutina: { id: number; nombre: string; totalDias: number };
+  /** Hay un entreno sin finalizar en esta rutina (sesión abierta). */
+  entrenoEnCurso?: boolean;
   onOptionsPress: (rutina: Props["rutina"]) => void;
   onStartWorkout?: (rutina: Props["rutina"]) => void;
   onRoutineHistory?: (rutina: Props["rutina"]) => void;
 }
 
-export default function RoutineItem({ rutina, onOptionsPress, onStartWorkout, onRoutineHistory }: Props) {
+export default function RoutineItem({
+  rutina,
+  entrenoEnCurso = false,
+  onOptionsPress,
+  onStartWorkout,
+  onRoutineHistory,
+}: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [diasDetalle, setDiasDetalle] = useState<DiaDetalle[] | null>(null);
@@ -116,6 +124,11 @@ export default function RoutineItem({ rutina, onOptionsPress, onStartWorkout, on
             <Text className="text-slate-500 text-sm mt-1">
               {rutina.totalDias === 1 ? "1 día de entrenamiento" : `${rutina.totalDias} días de entrenamiento`}
             </Text>
+            {entrenoEnCurso ? (
+              <View className="self-start mt-2 px-2 py-1 rounded-md bg-blue-950/80 border border-blue-500/45">
+                <Text className="text-blue-300 text-[10px] font-semibold">entreno en curso</Text>
+              </View>
+            ) : null}
           </View>
           <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={22} color="#64748b" />
         </Pressable>

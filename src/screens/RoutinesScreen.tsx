@@ -6,6 +6,7 @@ import { useFocusEffect } from '@react-navigation/native';
 
 import { RootStackParamList } from '@/navigation/types';
 import { getRutinasConDetalle, eliminarRutina } from '@/services/rutina/rutinasService';
+import { getRutinaIdsConEntrenoEnCurso } from '@/services/entrenamientos/entrenamientosService';
 import RoutineItem from '@/components/rutinas/RoutineItem';
 
 // IMPORTA TUS MODALES (Asegúrate de que la ruta sea correcta)
@@ -14,7 +15,8 @@ import { RoutineOptionsModal, RoutineDeleteModal } from '@/components/modals/rut
 type Props = NativeStackScreenProps<RootStackParamList, 'Routines'>;
 
 export default function RoutinesScreen({ navigation }: Props) {
-  const [rutinas, setRutinas] = useState<any[]>([]); 
+  const [rutinas, setRutinas] = useState<any[]>([]);
+  const [rutinasConEntrenoIds, setRutinasConEntrenoIds] = useState<Set<number>>(new Set());
   const[loading, setLoading] = useState(true);
   
   // --- ESTADOS PARA LOS MODALES ---
@@ -25,8 +27,12 @@ export default function RoutinesScreen({ navigation }: Props) {
   const cargarRutinas = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getRutinasConDetalle();
+      const [data, enCursoIds] = await Promise.all([
+        getRutinasConDetalle(),
+        getRutinaIdsConEntrenoEnCurso(),
+      ]);
       setRutinas(data);
+      setRutinasConEntrenoIds(enCursoIds);
     } catch (error) {
       console.error("Error al cargar rutinas:", error);
     } finally {
@@ -107,6 +113,7 @@ export default function RoutinesScreen({ navigation }: Props) {
             renderItem={({ item }) => (
               <RoutineItem
                 rutina={item}
+                entrenoEnCurso={rutinasConEntrenoIds.has(item.id)}
                 onOptionsPress={handleOptionsPress}
                 onStartWorkout={(r) =>
                   navigation.navigate("RoutineDayPicker", {

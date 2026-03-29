@@ -1,8 +1,9 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { RootStackParamList } from "@/navigation/types";
 import { getEntrenoActivoRutina } from "@/services/entrenamientos/entrenamientosService";
@@ -17,6 +18,8 @@ export default function RoutineDayPreviewScreen({ navigation, route }: Props) {
   const [entrenoActivo, setEntrenoActivo] = useState<Awaited<
     ReturnType<typeof getEntrenoActivoRutina>
   > | null>(null);
+  /** true = ejercicio plegado (solo título y resumen breve). */
+  const [collapsedEjercicios, setCollapsedEjercicios] = useState<Record<number, boolean>>({});
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -55,24 +58,55 @@ export default function RoutineDayPreviewScreen({ navigation, route }: Props) {
         ) : ejercicios.length === 0 ? (
           <Text className="text-slate-500 text-center">Este día no tiene ejercicios configurados.</Text>
         ) : (
-          ejercicios.map((ej, ei) => (
-            <View key={`${ej.ejercicioId}-${ei}`} className="bg-slate-800/90 rounded-2xl p-4 mb-4 border border-slate-700">
-              <Text className="text-white text-lg font-bold mb-3">{ej.nombre}</Text>
-              {ej.seriesPlantilla.length === 0 ? (
-                <Text className="text-slate-500 text-sm">Sin series objetivo en la plantilla.</Text>
-              ) : (
-                ej.seriesPlantilla.map((s, si) => (
-                  <View key={si} className="bg-slate-900/60 p-3 rounded-xl mb-2 border border-slate-700/80">
-                    <Text className="text-slate-500 text-xs mb-1">Serie {si + 1}</Text>
-                    <Text className="text-amber-400/95 text-base font-semibold">
-                      {s.reps} reps · {s.peso} kg
-                    </Text>
-                    <Text className="text-slate-500 text-xs mt-1">Objetivo de la rutina (referencia)</Text>
+          ejercicios.map((ej, ei) => {
+            const collapsed = !!collapsedEjercicios[ej.ejercicioId];
+            const nSeries = ej.seriesPlantilla.length;
+            return (
+              <View key={`${ej.ejercicioId}-${ei}`} className="bg-slate-800/90 rounded-2xl p-4 mb-4 border border-slate-700">
+                <Pressable
+                  onPress={() =>
+                    setCollapsedEjercicios((m) => ({ ...m, [ej.ejercicioId]: !m[ej.ejercicioId] }))
+                  }
+                  className="flex-row items-start justify-between gap-2 active:opacity-90"
+                >
+                  <View className="flex-1 min-w-0 pr-1">
+                    <Text className="text-white text-lg font-bold">{ej.nombre}</Text>
+                    {collapsed ? (
+                      <Text className="text-slate-500 text-xs mt-1.5">
+                        {nSeries === 0
+                          ? "Sin series en plantilla"
+                          : `${nSeries} ${nSeries === 1 ? "serie objetivo" : "series objetivo"}`}
+                      </Text>
+                    ) : null}
                   </View>
-                ))
-              )}
-            </View>
-          ))
+                  <Ionicons
+                    name={collapsed ? "chevron-down" : "chevron-up"}
+                    size={22}
+                    color="#94a3b8"
+                    style={{ marginTop: 2 }}
+                  />
+                </Pressable>
+
+                {!collapsed ? (
+                  <View className="mt-3">
+                    {ej.seriesPlantilla.length === 0 ? (
+                      <Text className="text-slate-500 text-sm">Sin series objetivo en la plantilla.</Text>
+                    ) : (
+                      ej.seriesPlantilla.map((s, si) => (
+                        <View key={si} className="bg-slate-900/60 p-3 rounded-xl mb-2 border border-slate-700/80">
+                          <Text className="text-slate-500 text-xs mb-1">Serie {si + 1}</Text>
+                          <Text className="text-amber-400/95 text-base font-semibold">
+                            {s.reps} reps · {s.peso} kg
+                          </Text>
+                          <Text className="text-slate-500 text-xs mt-1">Objetivo de la rutina (referencia)</Text>
+                        </View>
+                      ))
+                    )}
+                  </View>
+                ) : null}
+              </View>
+            );
+          })
         )}
       </ScrollView>
 

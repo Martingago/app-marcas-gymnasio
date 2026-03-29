@@ -74,6 +74,15 @@ export const getEntrenoActivoRutina = async (rutinaId: number): Promise<EntrenoA
   };
 };
 
+/** IDs de rutinas que tienen al menos un entrenamiento sin finalizar (para badges en listas). */
+export async function getRutinaIdsConEntrenoEnCurso(): Promise<Set<number>> {
+  const rows = await db
+    .select({ rutinaId: entrenamientos.rutinaId })
+    .from(entrenamientos)
+    .where(eq(entrenamientos.finalizado, 0));
+  return new Set(rows.map((r) => r.rutinaId).filter((id): id is number => id != null));
+}
+
 /**
  * Una sola sesión activa por rutina. Si ya hay otra abierta en otro día, lanza ERROR_OTRO_DIA_ACTIVO.
  */

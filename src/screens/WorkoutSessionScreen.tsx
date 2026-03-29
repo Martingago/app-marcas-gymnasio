@@ -7,7 +7,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Modal,
+  Pressable,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
@@ -32,6 +34,7 @@ import {
   getSeriesDelEntrenamiento,
   SerieRealizadaRow,
 } from "@/services/entrenamientos/entrenamientosService";
+import { parsePesoNoNegativo, sanitizePesoInput, sanitizeRepsInput } from "@/lib/inputNumeric";
 
 type Props = NativeStackScreenProps<RootStackParamList, "WorkoutSession">;
 
@@ -42,6 +45,17 @@ type EjercicioUi = {
   seriesPlantilla: { reps: string; peso: string }[];
   series: SerieRealizadaRow[];
 };
+
+/** Series de plantilla (1..N) con al menos una fila principal registrada. */
+function countSeriesPlantillaCompletadas(ex: EjercicioUi): { done: number; total: number } {
+  const total = ex.seriesPlantilla.length;
+  let done = 0;
+  for (let o = 1; o <= total; o++) {
+    const main = ex.series.find((s) => s.serieOrden === o && (s.esDropset ?? 0) === 0);
+    if (main) done++;
+  }
+  return { done, total };
+}
 
 function comparativaObjetivoReal(
   plant: { reps: string; peso: string } | undefined,
@@ -96,11 +110,11 @@ function SerieRowEditor({
   const persist = useCallback(async () => {
     if (!editable) return;
     const r = parseInt(String(reps).trim(), 10);
-    const p = parseFloat(String(peso).replace(",", "."));
+    const p = parsePesoNoNegativo(peso);
     if (!Number.isFinite(r) || r <= 0) return;
     setSyncing(true);
     try {
-      await actualizarSerieRealizada(row.id, r, Number.isFinite(p) ? p : 0);
+      await actualizarSerieRealizada(row.id, r, p);
     } catch (e) {
       console.error(e);
     } finally {
@@ -129,7 +143,7 @@ function SerieRowEditor({
   };
 
   const rTry = parseInt(String(reps).trim(), 10);
-  const pTry = parseFloat(String(peso).replace(",", "."));
+  const pTry = parsePesoNoNegativo(peso);
   const effRep = Number.isFinite(rTry) && rTry > 0 ? rTry : row.repeticiones;
   const effPeso = Number.isFinite(pTry) ? pTry : row.peso;
   const comp = !esDropset && objetivoMeta ? comparativaObjetivoReal(objetivoMeta, effRep, effPeso) : null;
@@ -157,7 +171,7 @@ function SerieRowEditor({
               placeholder={objetivoMeta?.reps ?? "Reps"}
               placeholderTextColor="#78716c"
               value={reps}
-              onChangeText={setReps}
+              onChangeText={(t) => setReps(sanitizeRepsInput(t))}
               onBlur={() => void persist()}
             />
             <TextInput
@@ -166,7 +180,7 @@ function SerieRowEditor({
               placeholder={objetivoMeta?.peso ?? "Kg"}
               placeholderTextColor="#78716c"
               value={peso}
-              onChangeText={setPeso}
+              onChangeText={(t) => setPeso(sanitizePesoInput(t))}
               onBlur={() => void persist()}
             />
             <TouchableOpacity onPress={confirmarBorrar} className="px-2 py-1" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -252,6 +266,8 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
   const [dropsetTarget, setDropsetTarget] = useState<null | { ejercicioId: number; orden: number }>(null);
   const [dropsetReps, setDropsetReps] = useState("");
   const [dropsetPeso, setDropsetPeso] = useState("");
+  /** true = ejercicio plegado (solo cabecera + resumen). */
+  const [collapsedEjercicios, setCollapsedEjercicios] = useState<Record<number, boolean>>({});
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -333,12 +349,12 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
     if (!entrenamientoId || finalizado) return;
     const plant = ej.seriesPlantilla[orden - 1];
     const repeticiones = plant ? parseInt(String(plant.reps).trim(), 10) : 10;
-    const pesoVal = plant ? parseFloat(String(plant.peso).replace(",", ".")) : 0;
+    const pesoVal = plant ? parsePesoNoNegativo(String(plant.peso)) : 0;
     try {
       await añadirSerieAlEntrenamiento(entrenamientoId, ej.ejercicioId, {
         serieOrden: orden,
         repeticiones: Number.isFinite(repeticiones) && repeticiones > 0 ? repeticiones : 10,
-        peso: Number.isFinite(pesoVal) ? pesoVal : 0,
+        peso: pesoVal,
       });
       await cargar();
     } catch (e) {
@@ -354,19 +370,11 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
   const guardarDropset = async () => {
     if (!entrenamientoId || !dropsetTarget || finalizado) return;
     const r = parseInt(String(dropsetReps).trim(), 10);
-    const p = parseFloat(String(dropsetPeso).replace(",", "."));
+    const p = parsePesoNoNegativo(dropsetPeso);
     if (!Number.isFinite(r) || r <= 0) {
       setDialogApp({
         title: "Reps",
         message: "Indica un número de repeticiones válido (> 0).",
-        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
-      });
-      return;
-    }
-    if (!Number.isFinite(p) || p < 0) {
-      setDialogApp({
-        title: "Peso",
-        message: "Indica un peso válido (0 o más).",
         actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
       });
       return;
@@ -516,6 +524,14 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
           const ordenesExtra = [
             ...new Set(ex.series.filter((s) => s.serieOrden > maxPlant).map((s) => s.serieOrden)),
           ].sort((a, b) => a - b);
+          const collapsed = !!collapsedEjercicios[ex.ejercicioId];
+          const { done: seriesDone, total: seriesTotal } = countSeriesPlantillaCompletadas(ex);
+          const resumenColor =
+            seriesTotal === 0
+              ? "text-slate-500"
+              : seriesDone >= seriesTotal
+                ? "text-emerald-400"
+                : "text-amber-400";
 
           const renderBloqueSerie = (orden: number, meta: { reps: string; peso: string } | null, esExtra: boolean) => {
             const main = ex.series.find((s) => s.serieOrden === orden && (s.esDropset ?? 0) === 0);
@@ -578,7 +594,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
                               placeholder="Reps"
                               placeholderTextColor="#6b21a8"
                               value={dropsetReps}
-                              onChangeText={setDropsetReps}
+                              onChangeText={(t) => setDropsetReps(sanitizeRepsInput(t))}
                             />
                             <TextInput
                               className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/50"
@@ -586,7 +602,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
                               placeholder="Kg"
                               placeholderTextColor="#6b21a8"
                               value={dropsetPeso}
-                              onChangeText={setDropsetPeso}
+                              onChangeText={(t) => setDropsetPeso(sanitizePesoInput(t))}
                             />
                           </View>
                           <View className="flex-row gap-2 mt-3">
@@ -634,27 +650,53 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
 
           return (
             <View key={`${ex.ejercicioId}-${ei}`} className="bg-slate-800/80 rounded-2xl p-4 mb-4 border border-slate-700">
-              <Text className="text-white text-lg font-bold mb-2">{ex.nombre}</Text>
+              <Pressable
+                onPress={() =>
+                  setCollapsedEjercicios((m) => ({ ...m, [ex.ejercicioId]: !m[ex.ejercicioId] }))
+                }
+                className="flex-row items-start justify-between gap-2 active:opacity-90"
+              >
+                <View className="flex-1 min-w-0 pr-1">
+                  <Text className="text-white text-lg font-bold">{ex.nombre}</Text>
+                  {collapsed ? (
+                    <Text className={`text-xs mt-1.5 font-semibold ${resumenColor}`}>
+                      {seriesTotal === 0
+                        ? "Sin series en la rutina"
+                        : `Completadas: ${seriesDone}/${seriesTotal}`}
+                    </Text>
+                  ) : null}
+                </View>
+                <Ionicons
+                  name={collapsed ? "chevron-down" : "chevron-up"}
+                  size={22}
+                  color="#94a3b8"
+                  style={{ marginTop: 2 }}
+                />
+              </Pressable>
 
-              {ex.seriesPlantilla.map((plant, idx) => {
-                const orden = idx + 1;
-                const meta = { reps: plant.reps, peso: plant.peso };
-                return renderBloqueSerie(orden, meta, false);
-              })}
+              {!collapsed ? (
+                <>
+                  {ex.seriesPlantilla.map((plant, idx) => {
+                    const orden = idx + 1;
+                    const meta = { reps: plant.reps, peso: plant.peso };
+                    return renderBloqueSerie(orden, meta, false);
+                  })}
 
-              {ordenesExtra.map((orden) => {
-                const meta = objetivoParaOrden(ex, orden);
-                return renderBloqueSerie(orden, meta, true);
-              })}
+                  {ordenesExtra.map((orden) => {
+                    const meta = objetivoParaOrden(ex, orden);
+                    return renderBloqueSerie(orden, meta, true);
+                  })}
 
-              {editable ? (
-                <TouchableOpacity
-                  className="mt-3 py-3 bg-blue-600/90 rounded-xl border border-blue-500/50"
-                  onPress={() => void añadirSerieExtra(ex)}
-                  activeOpacity={0.85}
-                >
-                  <Text className="text-white text-center font-bold">+ Añadir serie extra</Text>
-                </TouchableOpacity>
+                  {editable ? (
+                    <TouchableOpacity
+                      className="mt-3 py-3 bg-blue-600/90 rounded-xl border border-blue-500/50"
+                      onPress={() => void añadirSerieExtra(ex)}
+                      activeOpacity={0.85}
+                    >
+                      <Text className="text-white text-center font-bold">+ Añadir serie extra</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </>
               ) : null}
             </View>
           );
