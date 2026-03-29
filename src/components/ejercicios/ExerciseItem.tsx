@@ -18,7 +18,7 @@ export default function ExerciseItem({
 }: Props) {
   return (
     <TouchableOpacity
-      className="bg-slate-800 p-4 rounded-xl mb-3 flex-row items-center border border-slate-700"
+      className="bg-slate-800 p-3.5 rounded-xl mb-2 flex-row items-center border border-slate-700"
       onPress={() => onPress && onPress(ejercicio)}
       activeOpacity={0.7}
     >
