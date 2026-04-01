@@ -251,17 +251,11 @@ export default function ContributionGrid({
       >
         <View className="flex-1 bg-black/70 justify-end">
           <Pressable style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} onPress={() => setDiaModalAbierto(null)} />
-          <View
-            className="bg-slate-800 rounded-t-3xl border border-slate-600 border-b-0"
-            style={{
-              maxHeight: "85%",
-              paddingBottom: Math.max(insets.bottom, 12),
-            }}
-          >
+          <View className="bg-slate-800 rounded-t-3xl border border-slate-600 border-b-0" style={{ maxHeight: "85%" }}>
             <View className="w-12 h-1 bg-slate-600 rounded-full self-center mt-3 mb-2" />
             <ScrollView
               className="px-5 pt-2"
-              contentContainerStyle={{ paddingBottom: 16 }}
+              contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >

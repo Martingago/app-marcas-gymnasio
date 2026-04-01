@@ -148,11 +148,16 @@ export default function RoutineItem({
 
       <View className="flex-row px-4 pb-4 pt-3 gap-2">
         <TouchableOpacity
-          className="flex-1 bg-blue-600 py-3 rounded-xl items-center border border-blue-500/40"
+          className={`flex-1 py-3 rounded-xl items-center border ${
+            entrenoEnCurso
+              ? "bg-emerald-600 border-emerald-500/45"
+              : "bg-blue-600 border-blue-500/40"
+          }`}
           onPress={() => onStartWorkout?.(rutina)}
           activeOpacity={0.85}
+          accessibilityLabel={entrenoEnCurso ? "Ir al entreno en curso" : "Entrenar"}
         >
-          <Text className="text-white font-bold">Entrenar</Text>
+          <Text className="text-white font-bold">{entrenoEnCurso ? "Ir al entreno" : "Entrenar"}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           className="flex-1 bg-slate-700 py-3 rounded-xl items-center border border-slate-600"
