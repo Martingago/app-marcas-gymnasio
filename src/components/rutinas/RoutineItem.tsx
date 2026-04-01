@@ -78,6 +78,7 @@ interface Props {
   /** Hay un entreno sin finalizar en esta rutina (sesión abierta). */
   entrenoEnCurso?: boolean;
   onOptionsPress: (rutina: Props["rutina"]) => void;
+  onDuplicatePress?: (rutina: Props["rutina"]) => void;
   onStartWorkout?: (rutina: Props["rutina"]) => void;
   onRoutineHistory?: (rutina: Props["rutina"]) => void;
 }
@@ -86,6 +87,7 @@ export default function RoutineItem({
   rutina,
   entrenoEnCurso = false,
   onOptionsPress,
+  onDuplicatePress,
   onStartWorkout,
   onRoutineHistory,
 }: Props) {
@@ -134,6 +136,17 @@ export default function RoutineItem({
           </View>
           <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={22} color="#64748b" />
         </Pressable>
+
+        {onDuplicatePress ? (
+          <TouchableOpacity
+            className="p-2"
+            onPress={() => onDuplicatePress(rutina)}
+            accessibilityLabel="Duplicar rutina"
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+          >
+            <Ionicons name="copy-outline" size={22} color="#94a3b8" />
+          </TouchableOpacity>
+        ) : null}
 
         <View className="w-px h-10 bg-slate-700 mx-2" />
 

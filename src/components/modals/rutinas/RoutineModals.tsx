@@ -1,5 +1,5 @@
-import React from "react";
-import { Modal, View, Text, TouchableOpacity, Pressable } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Modal, View, Text, TouchableOpacity, Pressable, TextInput, ActivityIndicator } from "react-native";
 
 interface OptionsProps {
   visible: boolean;
@@ -78,6 +78,81 @@ export function RoutineDeleteModal({ visible, rutinaNombre, onClose, onConfirm }
               activeOpacity={0.85}
             >
               <Text className="text-white text-center font-bold">Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+interface DuplicateProps {
+  visible: boolean;
+  rutinaNombreOrigen?: string | null;
+  /** Valor inicial del campo nombre (p. ej. «Copia de …») */
+  nombreInicial: string;
+  onClose: () => void;
+  onConfirm: (nombreNuevaRutina: string) => void | Promise<void>;
+  duplicando?: boolean;
+}
+
+export function RoutineDuplicateModal({
+  visible,
+  rutinaNombreOrigen,
+  nombreInicial,
+  onClose,
+  onConfirm,
+  duplicando = false,
+}: DuplicateProps) {
+  const [nombre, setNombre] = useState(nombreInicial);
+
+  useEffect(() => {
+    if (visible) setNombre(nombreInicial);
+  }, [visible, nombreInicial]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View className="flex-1 bg-black/70 justify-center px-6">
+        <View className="bg-slate-800 rounded-2xl p-5 border border-slate-600">
+          <Text className="text-white text-xl font-bold mb-2 text-center px-1">
+            ¿Quieres hacer una copia de esta rutina?
+          </Text>
+          {rutinaNombreOrigen ? (
+            <Text className="text-slate-500 text-xs text-center mb-3" numberOfLines={2}>
+              Origen: {rutinaNombreOrigen}
+            </Text>
+          ) : null}
+          <Text className="text-slate-400 text-sm text-center leading-5 mb-4">
+            Únicamente se copiará la rutina de ejercicios (días y objetivos de cada serie). No se copiarán los entrenos ni el
+            historial asociado a la rutina original.
+          </Text>
+          <Text className="text-slate-500 text-xs font-semibold mb-1.5 ml-0.5">Nombre de la nueva rutina</Text>
+          <TextInput
+            className="bg-slate-900 text-white px-3 py-3 rounded-xl border border-slate-600 mb-5 text-base"
+            value={nombre}
+            onChangeText={setNombre}
+            placeholder="Nombre"
+            placeholderTextColor="#64748b"
+            editable={!duplicando}
+            selectTextOnFocus
+          />
+          <View className="flex-row gap-3">
+            <TouchableOpacity
+              className="flex-1 py-3 rounded-xl bg-slate-700"
+              onPress={onClose}
+              activeOpacity={0.85}
+              disabled={duplicando}
+            >
+              <Text className="text-slate-200 text-center font-semibold">Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="flex-1 py-3 rounded-xl bg-emerald-600 flex-row items-center justify-center gap-2"
+              onPress={() => void onConfirm(nombre)}
+              activeOpacity={0.85}
+              disabled={duplicando}
+            >
+              {duplicando ? <ActivityIndicator color="#fff" size="small" /> : null}
+              <Text className="text-white text-center font-bold">Duplicar</Text>
             </TouchableOpacity>
           </View>
         </View>
