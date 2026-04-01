@@ -7,4 +7,5 @@ export * from "./rutina/rutinaDiaEjercicios";
 export * from "./rutina/rutinaDiaEjerciciosSeries";
 export * from "./rutina/rutinaDiaEjerciciosRelations";
 export * from "./entrenamientos";
+export * from "./entrenamientoEjercicioUi";
 export * from "./series";

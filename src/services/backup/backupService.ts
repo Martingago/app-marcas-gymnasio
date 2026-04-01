@@ -10,6 +10,7 @@ export const BACKUP_JSON_VERSION = 1;
 
 const SQLITE_TABLES_DELETE_ORDER = [
   "series",
+  "entrenamiento_ejercicio_ui",
   "entrenamientos",
   "rutina_dia_ejercicio_series",
   "rutina_dia_ejercicios",
@@ -30,6 +31,7 @@ type TablesSnapshot = {
   rutina_dia_ejercicio_series: (typeof schema.rutinaDiaEjercicioSeries.$inferSelect)[];
   entrenamientos: (typeof schema.entrenamientos.$inferSelect)[];
   series: (typeof schema.series.$inferSelect)[];
+  entrenamiento_ejercicio_ui: (typeof schema.entrenamientoEjercicioUi.$inferSelect)[];
 };
 
 export type NextPRBackupPayload = {
@@ -182,7 +184,49 @@ export function validateBackupPayload(raw: unknown): { ok: true; data: NextPRBac
   });
   if (err) return { ok: false, message: err };
 
-  const data = raw as unknown as NextPRBackupPayload;
+  let entrenamiento_ejercicio_ui: TablesSnapshot["entrenamiento_ejercicio_ui"] = [];
+  if ("entrenamiento_ejercicio_ui" in t && t.entrenamiento_ejercicio_ui != null) {
+    err = validateRows(
+      "entrenamiento_ejercicio_ui",
+      t.entrenamiento_ejercicio_ui,
+      (row) => {
+        if (!isInt(row.entrenamientoId)) return "entrenamiento_ejercicio_ui: entrenamientoId inválido.";
+        if (!isInt(row.ejercicioId)) return "entrenamiento_ejercicio_ui: ejercicioId inválido.";
+        if (row.minimizado !== undefined && row.minimizado !== null) {
+          if (!isInt(row.minimizado)) return "entrenamiento_ejercicio_ui: minimizado inválido.";
+          if (row.minimizado !== 0 && row.minimizado !== 1) return "entrenamiento_ejercicio_ui: minimizado debe ser 0 o 1.";
+        }
+        return null;
+      }
+    );
+    if (err) return { ok: false, message: err };
+    entrenamiento_ejercicio_ui = (t.entrenamiento_ejercicio_ui as Record<string, unknown>[]).map((row) => ({
+      entrenamientoId: row.entrenamientoId as number,
+      ejercicioId: row.ejercicioId as number,
+      minimizado: (isInt(row.minimizado) ? row.minimizado : 0) as number,
+    }));
+  }
+
+  const tabCore = t as unknown as Omit<TablesSnapshot, "entrenamiento_ejercicio_ui">;
+  const data: NextPRBackupPayload = {
+    format: raw.format as typeof BACKUP_FORMAT,
+    version: raw.version as number,
+    exportedAt: raw.exportedAt as string,
+    drizzleMetaVersion: raw.drizzleMetaVersion as string,
+    tables: {
+      categorias: tabCore.categorias,
+      ejercicios: tabCore.ejercicios,
+      ejercicio_categorias: tabCore.ejercicio_categorias,
+      rutinas: tabCore.rutinas,
+      rutina_dias: tabCore.rutina_dias,
+      rutina_dia_ejercicios: tabCore.rutina_dia_ejercicios,
+      rutina_dia_ejercicio_series: tabCore.rutina_dia_ejercicio_series,
+      entrenamientos: tabCore.entrenamientos,
+      series: tabCore.series,
+      entrenamiento_ejercicio_ui,
+    },
+  };
+
   const fk = validateReferentialIntegrity(data.tables);
   if (fk) return { ok: false, message: fk };
 
@@ -249,6 +293,14 @@ function validateReferentialIntegrity(tab: TablesSnapshot): string | null {
       return `series ${s.id} referencia ejercicioId inexistente.`;
     }
   }
+  for (const u of tab.entrenamiento_ejercicio_ui) {
+    if (!entIds.has(u.entrenamientoId)) {
+      return `entrenamiento_ejercicio_ui referencia entrenamientoId ${u.entrenamientoId} inexistente.`;
+    }
+    if (!ejIds.has(u.ejercicioId)) {
+      return `entrenamiento_ejercicio_ui referencia ejercicioId ${u.ejercicioId} inexistente.`;
+    }
+  }
   return null;
 }
 
@@ -303,6 +355,7 @@ export async function exportBackupJson(): Promise<string> {
     rutina_dia_ejercicio_series,
     entrenamientos,
     series,
+    entrenamiento_ejercicio_ui,
   ] = await Promise.all([
     db.select().from(schema.categorias),
     db.select().from(schema.ejercicios),
@@ -313,6 +366,7 @@ export async function exportBackupJson(): Promise<string> {
     db.select().from(schema.rutinaDiaEjercicioSeries),
     db.select().from(schema.entrenamientos),
     db.select().from(schema.series),
+    db.select().from(schema.entrenamientoEjercicioUi),
   ]);
 
   const payload: NextPRBackupPayload = {
@@ -330,6 +384,7 @@ export async function exportBackupJson(): Promise<string> {
       rutina_dia_ejercicio_series,
       entrenamientos,
       series,
+      entrenamiento_ejercicio_ui,
     },
   };
 
@@ -381,6 +436,13 @@ function normalizeRutinaSerieRow(r: TablesSnapshot["rutina_dia_ejercicio_series"
   };
 }
 
+function normalizeEntrenoUiRow(r: TablesSnapshot["entrenamiento_ejercicio_ui"][number]) {
+  return {
+    ...r,
+    minimizado: r.minimizado ?? 0,
+  };
+}
+
 export async function importBackupPayload(payload: NextPRBackupPayload): Promise<void> {
   const tab = payload.tables;
   const categoriasSorted = sortCategoriasForInsert(tab.categorias);
@@ -413,6 +475,12 @@ export async function importBackupPayload(payload: NextPRBackupPayload): Promise
     await insertInChunks(tab.entrenamientos as unknown as Record<string, unknown>[], (batch) =>
       tx.insert(schema.entrenamientos).values(batch as TablesSnapshot["entrenamientos"])
     );
+    const uiRows = tab.entrenamiento_ejercicio_ui.map(normalizeEntrenoUiRow);
+    if (uiRows.length) {
+      await insertInChunks(uiRows as unknown as Record<string, unknown>[], (batch) =>
+        tx.insert(schema.entrenamientoEjercicioUi).values(batch as TablesSnapshot["entrenamiento_ejercicio_ui"])
+      );
+    }
     const seriesRows = tab.series.map(normalizeSerieRow);
     await insertInChunks(seriesRows as unknown as Record<string, unknown>[], (batch) =>
       tx.insert(schema.series).values(batch as TablesSnapshot["series"])

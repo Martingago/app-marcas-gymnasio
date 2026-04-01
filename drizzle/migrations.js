@@ -7,6 +7,7 @@ import m0002 from './0002_productive_next_avengers.sql';
 import m0003 from './0003_workout_history.sql';
 import m0004 from './0004_entrenamiento_finalizado.sql';
 import m0005 from './0005_outgoing_kinsey_walden.sql';
+import m0006 from './0006_entrenamiento_ejercicio_ui.sql';
 
   export default {
     journal,
@@ -16,7 +17,8 @@ m0001,
 m0002,
 m0003,
 m0004,
-m0005
+m0005,
+m0006
     }
   }
   

@@ -1,5 +1,6 @@
 import { db } from "@/database";
 import { entrenamientos } from "@/db/schema/entrenamientos";
+import { entrenamientoEjercicioUi } from "@/db/schema/entrenamientoEjercicioUi";
 import { series } from "@/db/schema/series";
 import { rutinaDias } from "@/db/schema/rutina/rutinaDias";
 import { rutinas } from "@/db/schema/rutina/rutina";
@@ -594,3 +595,38 @@ export const getProximoDiaSugerido = async (rutinaId: number) => {
     .limit(1);
   return primero ?? null;
 };
+
+/** Mapa ejercicioId → true si el bloque está plegado en la sesión (solo filas con minimizado = 1). */
+export async function getEjerciciosMinimizadosEnSesion(entrenamientoId: number): Promise<Record<number, boolean>> {
+  const rows = await db
+    .select()
+    .from(entrenamientoEjercicioUi)
+    .where(
+      and(eq(entrenamientoEjercicioUi.entrenamientoId, entrenamientoId), eq(entrenamientoEjercicioUi.minimizado, 1))
+    );
+  const m: Record<number, boolean> = {};
+  for (const r of rows) m[r.ejercicioId] = true;
+  return m;
+}
+
+export async function persistEjercicioSesionMinimizado(
+  entrenamientoId: number,
+  ejercicioId: number,
+  minimizado: boolean
+): Promise<void> {
+  if (minimizado) {
+    await db
+      .insert(entrenamientoEjercicioUi)
+      .values({ entrenamientoId, ejercicioId, minimizado: 1 })
+      .onConflictDoUpdate({
+        target: [entrenamientoEjercicioUi.entrenamientoId, entrenamientoEjercicioUi.ejercicioId],
+        set: { minimizado: 1 },
+      });
+  } else {
+    await db
+      .delete(entrenamientoEjercicioUi)
+      .where(
+        and(eq(entrenamientoEjercicioUi.entrenamientoId, entrenamientoId), eq(entrenamientoEjercicioUi.ejercicioId, ejercicioId))
+      );
+  }
+}

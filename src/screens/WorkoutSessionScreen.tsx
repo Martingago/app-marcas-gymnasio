@@ -30,8 +30,10 @@ import {
   cancelarEntrenamientoActivo,
   finalizarEntrenamientoDia,
   getEntrenamientoCabecera,
+  getEjerciciosMinimizadosEnSesion,
   getOrCreateSesionActivaParaDia,
   getSeriesDelEntrenamiento,
+  persistEjercicioSesionMinimizado,
   SerieRealizadaRow,
 } from "@/services/entrenamientos/entrenamientosService";
 import { parsePesoNoNegativo, sanitizePesoInput, sanitizeRepsInput } from "@/lib/inputNumeric";
@@ -167,20 +169,22 @@ function SerieRowEditor({
           <>
             <TextInput
               className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px]"
-              keyboardType="number-pad"
-              placeholder={objetivoMeta?.reps ?? "Reps"}
-              placeholderTextColor="#78716c"
-              value={reps}
-              onChangeText={(t) => setReps(sanitizeRepsInput(t))}
-              onBlur={() => void persist()}
-            />
-            <TextInput
-              className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px]"
               keyboardType="decimal-pad"
               placeholder={objetivoMeta?.peso ?? "Kg"}
               placeholderTextColor="#78716c"
               value={peso}
+              selectTextOnFocus
               onChangeText={(t) => setPeso(sanitizePesoInput(t))}
+              onBlur={() => void persist()}
+            />
+            <TextInput
+              className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px]"
+              keyboardType="number-pad"
+              placeholder={objetivoMeta?.reps ?? "Reps"}
+              placeholderTextColor="#78716c"
+              value={reps}
+              selectTextOnFocus
+              onChangeText={(t) => setReps(sanitizeRepsInput(t))}
               onBlur={() => void persist()}
             />
             <TouchableOpacity onPress={confirmarBorrar} className="px-2 py-1" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -190,10 +194,10 @@ function SerieRowEditor({
         ) : (
           <>
             <View className="flex-1 bg-slate-800/50 p-2 rounded-lg items-center justify-center min-h-[44px] border border-slate-700">
-              <Text className="text-white font-semibold">{reps} reps</Text>
+              <Text className="text-white font-semibold">{peso} kg</Text>
             </View>
             <View className="flex-1 bg-slate-800/50 p-2 rounded-lg items-center justify-center min-h-[44px] border border-slate-700">
-              <Text className="text-white font-semibold">{peso} kg</Text>
+              <Text className="text-white font-semibold">{reps} reps</Text>
             </View>
             <View className="w-8" />
           </>
@@ -201,7 +205,7 @@ function SerieRowEditor({
       </View>
       {!esDropset && objetivoMeta ? (
         <Text className="text-slate-500 text-xs mt-1 ml-1">
-          Objetivo: {objetivoMeta.reps} reps · {objetivoMeta.peso} kg · Registrado: {effRep} reps · {effPeso} kg
+          Objetivo: {objetivoMeta.peso} kg · {objetivoMeta.reps} reps · Registrado: {effPeso} kg · {effRep} reps
         </Text>
       ) : esDropset ? (
         <Text className="text-violet-400/80 text-xs mt-1 ml-1">Dropset: menos peso o más reps tras llegar al fallo.</Text>
@@ -228,10 +232,10 @@ function SlotSinRegistrar({
     <View className="mb-4 bg-slate-900/50 border border-dashed border-slate-600 rounded-xl p-3">
       <Text className="text-slate-500 text-xs mb-1">Serie {orden}</Text>
       <Text className="text-amber-400/95 font-bold text-base mb-1">
-        Objetivo de la rutina: {plant.reps} reps · {plant.peso} kg
+        Objetivo de la rutina: {plant.peso} kg · {plant.reps} reps
       </Text>
       <Text className="text-slate-400 text-sm leading-5 mb-3">
-        Tu objetivo para esta serie es de {plant.reps} repeticiones y {plant.peso} kg. Cuando la completes, registra lo
+        Tu objetivo para esta serie es de {plant.peso} kg y {plant.reps} repeticiones. Cuando la completes, registra lo
         que hayas hecho en realidad.
       </Text>
       {editable ? (
@@ -277,6 +281,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
         setEjercicios([]);
         setEntrenamientoId(null);
         setFinalizado(false);
+        setCollapsedEjercicios({});
         return;
       }
 
@@ -309,7 +314,11 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
       setFinalizado(cab?.finalizado === 1);
       setFechaSesion(cab?.fecha ?? fechaLocalHoy());
 
-      const todas = await getSeriesDelEntrenamiento(entId);
+      const [todas, minimizados] = await Promise.all([
+        getSeriesDelEntrenamiento(entId),
+        getEjerciciosMinimizadosEnSesion(entId),
+      ]);
+      setCollapsedEjercicios(minimizados);
 
       const merged: EjercicioUi[] = template.map((ej) => ({
         ejercicioId: ej.ejercicioId,
@@ -557,7 +566,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
                     </Text>
                     {meta ? (
                       <Text className="text-amber-500/95 text-xs font-semibold mb-1 ml-1">
-                        Objetivo rutina{esExtra ? " (si aplica)" : ""}: {meta.reps} reps · {meta.peso} kg
+                        Objetivo rutina{esExtra ? " (si aplica)" : ""}: {meta.peso} kg · {meta.reps} reps
                       </Text>
                     ) : (
                       <Text className="text-slate-500 text-xs mb-1 ml-1">Serie adicional</Text>
@@ -585,24 +594,26 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
                       abriendoDropset ? (
                         <View className="mt-2 ml-1 p-3 bg-violet-950/35 border border-violet-700/50 rounded-xl">
                           <Text className="text-violet-200 text-xs font-semibold mb-2">
-                            Nuevo dropset (reps y kg tras reducir peso o al fallo)
+                            Nuevo dropset (kg y reps tras reducir peso o al fallo)
                           </Text>
                           <View className="flex-row gap-2">
-                            <TextInput
-                              className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/50"
-                              keyboardType="number-pad"
-                              placeholder="Reps"
-                              placeholderTextColor="#6b21a8"
-                              value={dropsetReps}
-                              onChangeText={(t) => setDropsetReps(sanitizeRepsInput(t))}
-                            />
                             <TextInput
                               className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/50"
                               keyboardType="decimal-pad"
                               placeholder="Kg"
                               placeholderTextColor="#6b21a8"
                               value={dropsetPeso}
+                              selectTextOnFocus
                               onChangeText={(t) => setDropsetPeso(sanitizePesoInput(t))}
+                            />
+                            <TextInput
+                              className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/50"
+                              keyboardType="number-pad"
+                              placeholder="Reps"
+                              placeholderTextColor="#6b21a8"
+                              value={dropsetReps}
+                              selectTextOnFocus
+                              onChangeText={(t) => setDropsetReps(sanitizeRepsInput(t))}
                             />
                           </View>
                           <View className="flex-row gap-2 mt-3">
@@ -651,9 +662,13 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
           return (
             <View key={`${ex.ejercicioId}-${ei}`} className="bg-slate-800/80 rounded-2xl p-4 mb-4 border border-slate-700">
               <Pressable
-                onPress={() =>
-                  setCollapsedEjercicios((m) => ({ ...m, [ex.ejercicioId]: !m[ex.ejercicioId] }))
-                }
+                onPress={() => {
+                  const next = !collapsedEjercicios[ex.ejercicioId];
+                  setCollapsedEjercicios((m) => ({ ...m, [ex.ejercicioId]: next }));
+                  if (entrenamientoId != null) {
+                    void persistEjercicioSesionMinimizado(entrenamientoId, ex.ejercicioId, next);
+                  }
+                }}
                 className="flex-row items-start justify-between gap-2 active:opacity-90"
               >
                 <View className="flex-1 min-w-0 pr-1">
