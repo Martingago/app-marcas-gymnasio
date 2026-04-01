@@ -150,6 +150,17 @@ export default function RoutinesScreen({ navigation }: Props) {
     [navigation, rutinasConEntrenoIds]
   );
 
+  const handleRoutineDetails = useCallback(
+    (r: { id: number; nombre: string }) => {
+      navigation.navigate("RoutineDayPicker", {
+        rutinaId: r.id,
+        nombreRutina: r.nombre,
+        vistaInformacionRutina: true,
+      });
+    },
+    [navigation]
+  );
+
   return (
     <SafeAreaView edges={['bottom', 'left', 'right']} className="flex-1 bg-slate-900">
       <View className="flex-1 p-4">
@@ -179,6 +190,7 @@ export default function RoutinesScreen({ navigation }: Props) {
                 entrenoEnCurso={rutinasConEntrenoIds.has(item.id)}
                 onOptionsPress={handleOptionsPress}
                 onDuplicatePress={handleDuplicatePress}
+                onRoutineDetails={handleRoutineDetails}
                 onStartWorkout={(r) => void handleStartWorkout(r)}
                 onRoutineHistory={(r) =>
                   navigation.navigate("RoutineHistory", {

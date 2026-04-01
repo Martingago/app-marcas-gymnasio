@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useLayoutEffect, useState } from "react";
 import {
   View,
   Text,
@@ -20,7 +20,14 @@ import {
 type Props = NativeStackScreenProps<RootStackParamList, "RoutineDayPicker">;
 
 export default function RoutineDayPickerScreen({ navigation, route }: Props) {
-  const { rutinaId, nombreRutina } = route.params;
+  const { rutinaId, nombreRutina, vistaInformacionRutina } = route.params;
+  const esVistaInformacion = vistaInformacionRutina === true;
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: esVistaInformacion ? "Información de la rutina" : "Elegir día",
+    });
+  }, [navigation, esVistaInformacion]);
   const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState<{ id: number; nombre: string; orden: number }[]>([]);
   const [sugeridoId, setSugeridoId] = useState<number | null>(null);
@@ -54,8 +61,14 @@ export default function RoutineDayPickerScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView edges={["bottom", "left", "right"]} className="flex-1 bg-slate-900 p-4">
-      <Text className="text-white text-2xl font-bold mb-1">{nombreRutina}</Text>
-      <Text className="text-slate-400 mb-4">Elige el día que vas a entrenar</Text>
+      {esVistaInformacion ? (
+        <Text className="text-white text-2xl font-bold mb-4">{nombreRutina}</Text>
+      ) : (
+        <>
+          <Text className="text-white text-2xl font-bold mb-1">{nombreRutina}</Text>
+          <Text className="text-slate-400 mb-4">Elige el día que vas a entrenar</Text>
+        </>
+      )}
 
       {entrenoActivo ? (
         <View className="bg-amber-900/35 border border-amber-600/45 rounded-xl p-3 mb-4">
