@@ -128,7 +128,7 @@ export default function SessionDetailScreen({ route, navigation }: Props) {
                       {s.esDropset ? `Serie ${s.serieOrden} · dropset` : `Serie ${s.serieOrden}`}
                     </Text>
                     <Text className="text-slate-100 font-mono text-sm">
-                      {s.reps} reps @ {s.peso} kg
+                      {s.peso} kg × {s.reps} reps
                     </Text>
                   </View>
                 ))}

@@ -321,7 +321,7 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
                               {s.esDropset ? " · dropset" : ""}
                             </Text>
                             <Text className="text-slate-100 font-mono text-sm">
-                              {s.reps} reps @ {s.peso} kg
+                              {s.peso} kg × {s.reps} reps
                             </Text>
                           </View>
                         ))}
@@ -461,7 +461,7 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
                           {s.esDropset ? " · dropset" : ""}
                         </Text>
                         <Text className="text-slate-100 font-mono text-sm">
-                          {s.reps} reps × {s.peso} kg
+                          {s.peso} kg × {s.reps} reps
                         </Text>
                       </View>
                     ))}

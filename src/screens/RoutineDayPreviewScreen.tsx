@@ -96,7 +96,7 @@ export default function RoutineDayPreviewScreen({ navigation, route }: Props) {
                         <View key={si} className="bg-slate-900/60 p-3 rounded-xl mb-2 border border-slate-700/80">
                           <Text className="text-slate-500 text-xs mb-1">Serie {si + 1}</Text>
                           <Text className="text-amber-400/95 text-base font-semibold">
-                            {s.reps} reps · {s.peso} kg
+                            {s.peso} kg × {s.reps} reps
                           </Text>
                           <Text className="text-slate-500 text-xs mt-1">Objetivo de la rutina (referencia)</Text>
                         </View>
