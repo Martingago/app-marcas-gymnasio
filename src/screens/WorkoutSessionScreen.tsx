@@ -252,7 +252,10 @@ function SlotSinRegistrar({
   );
 }
 
-/** Fila vacía bajo las series: al completar kg + reps válidos, crea el dropset con el mismo autoguardado por debounce que el resto de la sesión. */
+/**
+ * Inputs de un dropset pendiente: mismo autoguardado por debounce que el resto de la sesión.
+ * Misma fila que una serie (kg / reps) y × a la derecha para cerrar sin guardar.
+ */
 function DropsetPendingRow({
   entrenamientoId,
   ejercicioId,
@@ -262,6 +265,7 @@ function DropsetPendingRow({
   placeholderReps,
   onAdded,
   onError,
+  onDismiss,
 }: {
   entrenamientoId: number | null;
   ejercicioId: number;
@@ -271,6 +275,7 @@ function DropsetPendingRow({
   placeholderReps?: string;
   onAdded: () => void;
   onError: (message: string) => void;
+  onDismiss: () => void;
 }) {
   const [peso, setPeso] = useState("");
   const [reps, setReps] = useState("");
@@ -316,13 +321,15 @@ function DropsetPendingRow({
   if (!editable || !entrenamientoId) return null;
 
   return (
-    <View className="mt-2 ml-1 p-2 rounded-xl border border-dashed border-violet-800/55 bg-violet-950/20">
-      <Text className="text-violet-300/90 text-[10px] font-bold uppercase mb-1">Nuevo dropset</Text>
-      <Text className="text-slate-500 text-xs mb-2 leading-5">
-        Indica kg y reps; se guarda solo (igual que al editar una serie).
-      </Text>
-      <View className="flex-row items-center gap-2">
-        <View className="w-9" />
+    <View className="mb-2">
+      <View className="flex-row items-center gap-2 bg-slate-900/60 p-2 rounded-xl border border-dashed border-violet-600/45">
+        <View className="w-9 items-center justify-center min-h-[44px]">
+          {busy ? (
+            <ActivityIndicator size="small" color="#a78bfa" />
+          ) : (
+            <Text className="font-bold text-sm text-violet-400">↓</Text>
+          )}
+        </View>
         <TextInput
           className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/45"
           keyboardType="decimal-pad"
@@ -330,6 +337,7 @@ function DropsetPendingRow({
           placeholderTextColor="#6b21a8"
           value={peso}
           selectTextOnFocus
+          editable={!busy}
           onChangeText={(t) => setPeso(sanitizePesoInput(t))}
         />
         <TextInput
@@ -339,10 +347,80 @@ function DropsetPendingRow({
           placeholderTextColor="#6b21a8"
           value={reps}
           selectTextOnFocus
+          editable={!busy}
           onChangeText={(t) => setReps(sanitizeRepsInput(t))}
         />
-        {busy ? <ActivityIndicator size="small" color="#a78bfa" style={{ width: 28 }} /> : <View className="w-7" />}
+        <TouchableOpacity
+          onPress={() => {
+            if (busy) return;
+            setPeso("");
+            setReps("");
+            onDismiss();
+          }}
+          className="px-2 py-1"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          disabled={busy}
+        >
+          <Ionicons name="close" size={22} color="#f87171" />
+        </TouchableOpacity>
       </View>
+  
+    </View>
+  );
+}
+
+/** Botón «Añadir dropset»; al pulsar muestra la fila de entrada. Tras guardar uno, vuelve el botón para poder añadir otro. */
+function DropsetAddSection({
+  entrenamientoId,
+  ejercicioId,
+  orden,
+  editable,
+  placeholderPeso,
+  placeholderReps,
+  onAdded,
+  onError,
+}: {
+  entrenamientoId: number | null;
+  ejercicioId: number;
+  orden: number;
+  editable: boolean;
+  placeholderPeso?: string;
+  placeholderReps?: string;
+  onAdded: () => void;
+  onError: (message: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const handleAdded = useCallback(() => {
+    setExpanded(false);
+    onAdded();
+  }, [onAdded]);
+
+  if (!editable || !entrenamientoId) return null;
+
+  return (
+    <View className="mt-1 ml-1">
+      {expanded ? (
+        <DropsetPendingRow
+          entrenamientoId={entrenamientoId}
+          ejercicioId={ejercicioId}
+          orden={orden}
+          editable={editable}
+          placeholderPeso={placeholderPeso}
+          placeholderReps={placeholderReps}
+          onAdded={handleAdded}
+          onError={onError}
+          onDismiss={() => setExpanded(false)}
+        />
+      ) : (
+        <TouchableOpacity
+          className="py-2.5 px-3 rounded-xl border border-dashed border-violet-800/55 bg-violet-950/20 active:opacity-90"
+          onPress={() => setExpanded(true)}
+          activeOpacity={0.85}
+        >
+          <Text className="text-violet-300 text-center font-semibold">+ Añadir dropset</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -668,8 +746,8 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
                         />
                       </View>
                     ))}
-                    <DropsetPendingRow
-                      key={`drop-pend-${ex.ejercicioId}-${orden}`}
+                    <DropsetAddSection
+                      key={`drop-add-${ex.ejercicioId}-${orden}`}
                       entrenamientoId={entrenamientoId}
                       ejercicioId={ex.ejercicioId}
                       orden={orden}
