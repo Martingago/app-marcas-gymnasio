@@ -11,11 +11,12 @@ import { ejercicios } from "@/db/schema/ejercicios";
 import { FormRutina, FormRutinaDiaEjercicio } from "@/interfaces/form/formRutina";
 import { rutinaDiaEjercicioSeries } from "@/db/schema/rutina/rutinaDiaEjerciciosSeries";
 
-// Guardar rutina completa en transacción
-export const guardarRutinaCompleta = async (formData: FormRutina) => {
-  await db.transaction(async (tx) => {
+// Guardar rutina completa en transacción (solo plantilla: días, ejercicios, series objetivo — no entrenos)
+export const guardarRutinaCompleta = async (formData: FormRutina): Promise<number> => {
+  return await db.transaction(async (tx) => {
     // 1. Crear Rutina
-    const[nuevaRutina] = await tx.insert(rutinas).values({ nombre: formData.nombre }).returning({ id: rutinas.id });
+    const [nuevaRutina] = await tx.insert(rutinas).values({ nombre: formData.nombre }).returning({ id: rutinas.id });
+    if (!nuevaRutina) throw new Error("No se pudo crear la rutina.");
 
     // 2. Crear Días
     for (let i = 0; i < formData.dias.length; i++) {
@@ -49,6 +50,8 @@ export const guardarRutinaCompleta = async (formData: FormRutina) => {
         }
       }
     }
+
+    return nuevaRutina.id;
   });
 };
 
@@ -369,4 +372,30 @@ export const getRutinaParaEditar = async (rutinaId: number): Promise<FormRutina>
   });
 
   return formRutina;
+};
+
+/** Copia la plantilla de la rutina (días, ejercicios y series objetivo). No copia entrenamientos del historial. */
+export const duplicarRutina = async (rutinaId: number, nombreNuevo: string): Promise<number> => {
+  const src = await getRutinaParaEditar(rutinaId);
+  const nombre = nombreNuevo.trim() || `Copia de ${src.nombre}`;
+  const form: FormRutina = {
+    nombre,
+    dias: src.dias.map((d) => ({
+      id_temp: Math.random().toString(),
+      nombre: d.nombre,
+      ejercicios: d.ejercicios
+        .filter((ej) => ej.ejercicio_id != null)
+        .map((ej) => ({
+          id_temp: Math.random().toString(),
+          ejercicio_id: ej.ejercicio_id!,
+          ejercicio_nombre: ej.ejercicio_nombre,
+          series: ej.series.map((s) => ({
+            id_temp: Math.random().toString(),
+            reps_objetivo: s.reps_objetivo,
+            peso_objetivo: s.peso_objetivo,
+          })),
+        })),
+    })),
+  };
+  return guardarRutinaCompleta(form);
 };

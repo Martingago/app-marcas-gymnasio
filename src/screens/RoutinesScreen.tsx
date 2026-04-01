@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from "react";
-import { View, Text, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback, useMemo } from "react";
+import { View, Text, TouchableOpacity, FlatList, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { RootStackParamList } from '@/navigation/types';
-import { getRutinasConDetalle, eliminarRutina } from '@/services/rutina/rutinasService';
+import { getRutinasConDetalle, eliminarRutina, duplicarRutina } from "@/services/rutina/rutinasService";
 import {
   getEntrenoActivoRutina,
   getRutinaIdsConEntrenoEnCurso,
@@ -13,7 +13,11 @@ import {
 import RoutineItem from '@/components/rutinas/RoutineItem';
 
 // IMPORTA TUS MODALES (Asegúrate de que la ruta sea correcta)
-import { RoutineOptionsModal, RoutineDeleteModal } from '@/components/modals/rutinas/RoutineModals';
+import {
+  RoutineOptionsModal,
+  RoutineDeleteModal,
+  RoutineDuplicateModal,
+} from "@/components/modals/rutinas/RoutineModals";
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Routines'>;
 
@@ -26,6 +30,8 @@ export default function RoutinesScreen({ navigation }: Props) {
   const[selectedRutina, setSelectedRutina] = useState<any>(null);
   const[optionsVisible, setOptionsVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
+  const [duplicateVisible, setDuplicateVisible] = useState(false);
+  const [duplicando, setDuplicando] = useState(false);
  
   const cargarRutinas = useCallback(async () => {
     setLoading(true);
@@ -90,6 +96,34 @@ export default function RoutinesScreen({ navigation }: Props) {
     }
   };
 
+  const nombreCopiaDefecto = useMemo(
+    () => (selectedRutina?.nombre ? `Copia de ${selectedRutina.nombre}` : "Copia"),
+    [selectedRutina?.nombre]
+  );
+
+  const handleDuplicatePress = (rutina: { id: number; nombre: string }) => {
+    setSelectedRutina(rutina);
+    setDuplicateVisible(true);
+  };
+
+  const handleConfirmDuplicate = async (nombreNueva: string) => {
+    if (!selectedRutina) return;
+    setDuplicando(true);
+    try {
+      await duplicarRutina(selectedRutina.id, nombreNueva);
+      setDuplicateVisible(false);
+      await cargarRutinas();
+    } catch (e) {
+      console.error("Error al duplicar rutina:", e);
+      Alert.alert(
+        "No se pudo duplicar",
+        e instanceof Error ? e.message : "Inténtalo de nuevo en unos segundos."
+      );
+    } finally {
+      setDuplicando(false);
+    }
+  };
+
   const handleStartWorkout = useCallback(
     async (r: { id: number; nombre: string }) => {
       if (rutinasConEntrenoIds.has(r.id)) {
@@ -114,6 +148,17 @@ export default function RoutinesScreen({ navigation }: Props) {
       });
     },
     [navigation, rutinasConEntrenoIds]
+  );
+
+  const handleRoutineDetails = useCallback(
+    (r: { id: number; nombre: string }) => {
+      navigation.navigate("RoutineDayPicker", {
+        rutinaId: r.id,
+        nombreRutina: r.nombre,
+        vistaInformacionRutina: true,
+      });
+    },
+    [navigation]
   );
 
   return (
@@ -144,6 +189,8 @@ export default function RoutinesScreen({ navigation }: Props) {
                 rutina={item}
                 entrenoEnCurso={rutinasConEntrenoIds.has(item.id)}
                 onOptionsPress={handleOptionsPress}
+                onDuplicatePress={handleDuplicatePress}
+                onRoutineDetails={handleRoutineDetails}
                 onStartWorkout={(r) => void handleStartWorkout(r)}
                 onRoutineHistory={(r) =>
                   navigation.navigate("RoutineHistory", {
@@ -183,6 +230,17 @@ export default function RoutinesScreen({ navigation }: Props) {
         rutinaNombre={selectedRutina?.nombre}
         onClose={() => setDeleteVisible(false)}
         onConfirm={handleConfirmDelete}
+      />
+
+      <RoutineDuplicateModal
+        visible={duplicateVisible}
+        rutinaNombreOrigen={selectedRutina?.nombre}
+        nombreInicial={nombreCopiaDefecto}
+        onClose={() => {
+          if (!duplicando) setDuplicateVisible(false);
+        }}
+        onConfirm={handleConfirmDuplicate}
+        duplicando={duplicando}
       />
 
     </SafeAreaView>

@@ -5,7 +5,12 @@ export type RootStackParamList = {
   Exercises: undefined;
   ExerciseDetail: { ejercicioId: number };
   ActiveWorkout: undefined;
-  RoutineDayPicker: { rutinaId: number; nombreRutina: string };
+  /** `vistaInformacionRutina`: desde Mis rutinas (detalle sin forzar flujo de «elegir día para entrenar»). */
+  RoutineDayPicker: {
+    rutinaId: number;
+    nombreRutina: string;
+    vistaInformacionRutina?: boolean;
+  };
   /** Vista previa del día (sin crear sesión de entreno) */
   RoutineDayPreview: {
     rutinaId: number;
