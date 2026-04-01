@@ -383,6 +383,31 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
     }));
   };
 
+  const duplicarSerie = (diaId: string, ejId: string, serieId: string) => {
+    setRutina((prev) => ({
+      ...prev,
+      dias: prev.dias.map((d) => {
+        if (d.id_temp !== diaId) return d;
+        return {
+          ...d,
+          ejercicios: d.ejercicios.map((e) => {
+            if (e.id_temp !== ejId) return e;
+            const idx = e.series.findIndex((s) => s.id_temp === serieId);
+            if (idx < 0) return e;
+            const src = e.series[idx];
+            const copia: FormRutinaDiaEjercicioSerie = {
+              id_temp: Math.random().toString(),
+              reps_objetivo: src.reps_objetivo,
+              peso_objetivo: src.peso_objetivo,
+            };
+            const series = [...e.series.slice(0, idx + 1), copia, ...e.series.slice(idx + 1)];
+            return { ...e, series };
+          }),
+        };
+      }),
+    }));
+  };
+
   const eliminarSerie = (diaId: string, ejId: string, serieId: string) => {
     setRutina((prev) => ({
       ...prev,
@@ -665,33 +690,27 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
                 </View>
 
                 <View className="p-3">
-                  <View className="flex-row mb-2 px-1">
+                  <View className="flex-row mb-2 px-1 items-end">
+                    <View className="w-9" />
                     <Text className="w-10 text-slate-500 text-[10px] font-bold text-center">#</Text>
-                    <Text className="flex-1 text-slate-500 text-[10px] font-bold text-center">Reps</Text>
                     <Text className="flex-1 text-slate-500 text-[10px] font-bold text-center">Kg</Text>
+                    <Text className="flex-1 text-slate-500 text-[10px] font-bold text-center">Reps</Text>
                     <View className="w-8" />
                   </View>
 
                   {ej.series.map((serie, index) => (
                     <View key={serie.id_temp} className="flex-row items-center mb-2">
+                      <Pressable
+                        onPress={() => duplicarSerie(diaActivo.id_temp, ej.id_temp, serie.id_temp)}
+                        className="w-9 h-9 mr-0.5 items-center justify-center rounded-lg active:bg-slate-700/80"
+                        accessibilityLabel="Duplicar serie"
+                        accessibilityRole="button"
+                      >
+                        <Ionicons name="copy-outline" size={20} color="#64748b" />
+                      </Pressable>
                       <View className="w-10 h-9 bg-slate-900/80 rounded-lg items-center justify-center mr-1">
                         <Text className="text-slate-400 text-sm font-bold">{index + 1}</Text>
                       </View>
-                      <TextInput
-                        className="flex-1 mx-1 bg-slate-900/60 text-white py-2 rounded-lg text-center text-sm border border-slate-700/80"
-                        keyboardType="numeric"
-                        selectTextOnFocus
-                        value={serie.reps_objetivo?.toString()}
-                        onChangeText={(txt) =>
-                          actualizarSerie(
-                            diaActivo.id_temp,
-                            ej.id_temp,
-                            serie.id_temp,
-                            "reps_objetivo",
-                            sanitizeRepsInput(txt)
-                          )
-                        }
-                      />
                       <TextInput
                         className="flex-1 mx-1 bg-slate-900/60 text-white py-2 rounded-lg text-center text-sm border border-slate-700/80"
                         keyboardType="numeric"
@@ -704,6 +723,21 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
                             serie.id_temp,
                             "peso_objetivo",
                             sanitizePesoInput(txt)
+                          )
+                        }
+                      />
+                      <TextInput
+                        className="flex-1 mx-1 bg-slate-900/60 text-white py-2 rounded-lg text-center text-sm border border-slate-700/80"
+                        keyboardType="numeric"
+                        selectTextOnFocus
+                        value={serie.reps_objetivo?.toString()}
+                        onChangeText={(txt) =>
+                          actualizarSerie(
+                            diaActivo.id_temp,
+                            ej.id_temp,
+                            serie.id_temp,
+                            "reps_objetivo",
+                            sanitizeRepsInput(txt)
                           )
                         }
                       />

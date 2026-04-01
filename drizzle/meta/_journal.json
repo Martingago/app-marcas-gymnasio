@@ -43,6 +43,13 @@
       "when": 1774789003380,
       "tag": "0005_outgoing_kinsey_walden",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1775000000000,
+      "tag": "0006_entrenamiento_ejercicio_ui",
+      "breakpoints": true
     }
   ]
 }
