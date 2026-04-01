@@ -52,6 +52,39 @@ export const guardarRutinaCompleta = async (formData: FormRutina) => {
   });
 };
 
+/** Días (y rutina) donde aparece un ejercicio del catálogo; útil en la ficha del ejercicio. */
+export type RutinaDiaUsoEjercicio = {
+  rutinaId: number;
+  rutinaNombre: string;
+  rutinaDiaId: number;
+  nombreDia: string;
+};
+
+export const getRutinasYDiasDondeApareceEjercicio = async (
+  ejercicioId: number
+): Promise<RutinaDiaUsoEjercicio[]> => {
+  const rows = await db
+    .select({
+      rutinaId: rutinas.id,
+      rutinaNombre: rutinas.nombre,
+      rutinaDiaId: rutinaDias.id,
+      nombreDia: rutinaDias.nombre,
+      ordenDia: rutinaDias.orden,
+    })
+    .from(rutinaDiaEjercicios)
+    .innerJoin(rutinaDias, eq(rutinaDiaEjercicios.rutinaDiaId, rutinaDias.id))
+    .innerJoin(rutinas, eq(rutinaDias.rutinaId, rutinas.id))
+    .where(eq(rutinaDiaEjercicios.ejercicioId, ejercicioId))
+    .orderBy(asc(rutinas.nombre), asc(rutinaDias.orden));
+
+  return rows.map((r) => ({
+    rutinaId: r.rutinaId,
+    rutinaNombre: r.rutinaNombre,
+    rutinaDiaId: r.rutinaDiaId,
+    nombreDia: r.nombreDia,
+  }));
+};
+
 // Conteo real de filas en rutina_dias por rutina
 export const getRutinasConDetalle = async () => {
   return await db

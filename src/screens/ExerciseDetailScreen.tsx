@@ -19,6 +19,10 @@ import ContributionGrid from "@/components/charts/ContributionGrid";
 import { RootStackParamList } from "@/navigation/types";
 import { getEjercicioById } from "@/services/ejercicios/ejerciciosService";
 import {
+  getRutinasYDiasDondeApareceEjercicio,
+  type RutinaDiaUsoEjercicio,
+} from "@/services/rutina/rutinasService";
+import {
   getHistorialPorEjercicio,
   HistorialEjercicioFila,
   type SesionRutinaResumen,
@@ -87,6 +91,20 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
   const [metrica, setMetrica] = useState<MetricaEvolucion>("maxPeso");
   const [puntoModal, setPuntoModal] = useState<PuntoEvolucionEjercicio | null>(null);
   const [expandedBloques, setExpandedBloques] = useState<Record<number, boolean>>({});
+  const [rutinasUso, setRutinasUso] = useState<RutinaDiaUsoEjercicio[]>([]);
+
+  const rutinasAgrupadas = useMemo(() => {
+    const map = new Map<number, { nombre: string; dias: RutinaDiaUsoEjercicio[] }>();
+    for (const row of rutinasUso) {
+      if (!map.has(row.rutinaId)) {
+        map.set(row.rutinaId, { nombre: row.rutinaNombre, dias: [] });
+      }
+      map.get(row.rutinaId)!.dias.push(row);
+    }
+    return Array.from(map.entries()).sort((a, b) =>
+      a[1].nombre.localeCompare(b[1].nombre, "es", { sensitivity: "base" })
+    );
+  }, [rutinasUso]);
 
   const bloques = useMemo(() => agruparPorEntreno(historial), [historial]);
   const fechasParaGrid = useMemo(() => bloques.map((b) => b.fecha), [bloques]);
@@ -110,15 +128,17 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const [ej, hist] = await Promise.all([
+      const [ej, hist, usoRutinas] = await Promise.all([
         getEjercicioById(ejercicioId),
         getHistorialPorEjercicio(ejercicioId),
+        getRutinasYDiasDondeApareceEjercicio(ejercicioId),
       ]);
       if (ej) {
         setNombre(ej.nombre);
         setCategoria(ej.categoria_nombre ?? null);
       }
       setHistorial(hist);
+      setRutinasUso(usoRutinas);
     } catch (e) {
       console.error(e);
     } finally {
@@ -158,7 +178,54 @@ export default function ExerciseDetailScreen({ route, navigation }: Props) {
           <View className="px-4 pt-2 pb-3 border-b border-slate-800">
             <Text className="text-white text-2xl font-bold">{nombre || "Ejercicio"}</Text>
             <Text className="text-slate-400 mt-1">{categoria ?? "Sin categoría"}</Text>
-            <Text className="text-slate-600 text-[10px] font-bold uppercase mt-3 mb-2">Vista</Text>
+
+            <View className="mt-4 pt-4 border-t border-slate-800">
+              <Text className="text-slate-600 text-[10px] font-bold uppercase mb-2">Rutinas</Text>
+              {rutinasAgrupadas.length === 0 ? (
+                <Text className="text-slate-500 text-sm leading-5">
+                  Este ejercicio no aparece en ninguna rutina. Añádelo al crear o editar una rutina.
+                </Text>
+              ) : (
+                rutinasAgrupadas.map(([rutinaId, { nombre, dias }]) => (
+                  <View
+                    key={rutinaId}
+                    className="mb-3 rounded-xl border border-slate-700 bg-slate-800/50 overflow-hidden last:mb-0"
+                  >
+                    <Pressable
+                      onPress={() =>
+                        navigation.navigate("RoutineDayPicker", { rutinaId, nombreRutina: nombre })
+                      }
+                      className="flex-row items-center justify-between px-3 py-3 active:bg-slate-700/70"
+                    >
+                      <View className="flex-1 min-w-0 pr-2">
+                        <Text className="text-white font-bold text-base">{nombre}</Text>
+                        <Text className="text-slate-500 text-xs mt-0.5">Ver días y empezar entreno</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#64748b" />
+                    </Pressable>
+                    {dias.map((d) => (
+                      <Pressable
+                        key={d.rutinaDiaId}
+                        onPress={() =>
+                          navigation.navigate("RoutineDayPreview", {
+                            rutinaId,
+                            rutinaDiaId: d.rutinaDiaId,
+                            nombreRutina: nombre,
+                            nombreDia: d.nombreDia,
+                          })
+                        }
+                        className="flex-row items-center justify-between pl-4 pr-3 py-2.5 border-t border-slate-700/70 active:bg-slate-800/90"
+                      >
+                        <Text className="text-slate-300 text-sm">{d.nombreDia}</Text>
+                        <Ionicons name="open-outline" size={18} color="#94a3b8" />
+                      </Pressable>
+                    ))}
+                  </View>
+                ))
+              )}
+            </View>
+
+            <Text className="text-slate-600 text-[10px] font-bold uppercase mt-4 mb-2">Vista</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               {TABS.map((t) => {
                 const active = tab === t.id;

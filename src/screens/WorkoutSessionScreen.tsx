@@ -249,6 +249,101 @@ function SlotSinRegistrar({
   );
 }
 
+/** Fila vacía bajo las series: al completar kg + reps válidos, crea el dropset con el mismo autoguardado por debounce que el resto de la sesión. */
+function DropsetPendingRow({
+  entrenamientoId,
+  ejercicioId,
+  orden,
+  editable,
+  placeholderPeso,
+  placeholderReps,
+  onAdded,
+  onError,
+}: {
+  entrenamientoId: number | null;
+  ejercicioId: number;
+  orden: number;
+  editable: boolean;
+  placeholderPeso?: string;
+  placeholderReps?: string;
+  onAdded: () => void;
+  onError: (message: string) => void;
+}) {
+  const [peso, setPeso] = useState("");
+  const [reps, setReps] = useState("");
+  const [busy, setBusy] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inFlightRef = useRef(false);
+  const onAddedRef = useRef(onAdded);
+  const onErrorRef = useRef(onError);
+  onAddedRef.current = onAdded;
+  onErrorRef.current = onError;
+
+  const attemptAdd = useCallback(async () => {
+    if (!editable || !entrenamientoId || inFlightRef.current) return;
+    const r = parseInt(String(reps).trim(), 10);
+    const p = parsePesoNoNegativo(peso);
+    if (!Number.isFinite(r) || r <= 0) return;
+    inFlightRef.current = true;
+    setBusy(true);
+    try {
+      await añadirDropsetTrasSerie(entrenamientoId, ejercicioId, orden, r, p);
+      setPeso("");
+      setReps("");
+      onAddedRef.current();
+    } catch (e) {
+      onErrorRef.current(e instanceof Error ? e.message : "No se pudo añadir el dropset.");
+    } finally {
+      inFlightRef.current = false;
+      setBusy(false);
+    }
+  }, [editable, entrenamientoId, ejercicioId, orden, peso, reps]);
+
+  useEffect(() => {
+    if (!editable || !entrenamientoId) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      void attemptAdd();
+    }, 500);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [peso, reps, editable, entrenamientoId, attemptAdd]);
+
+  if (!editable || !entrenamientoId) return null;
+
+  return (
+    <View className="mt-2 ml-1 p-2 rounded-xl border border-dashed border-violet-800/55 bg-violet-950/20">
+      <Text className="text-violet-300/90 text-[10px] font-bold uppercase mb-1">Nuevo dropset</Text>
+      <Text className="text-slate-500 text-xs mb-2 leading-5">
+        Indica kg y reps; se guarda solo (igual que al editar una serie).
+      </Text>
+      <View className="flex-row items-center gap-2">
+        <View className="w-9" />
+        <TextInput
+          className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/45"
+          keyboardType="decimal-pad"
+          placeholder={placeholderPeso ?? "Kg"}
+          placeholderTextColor="#6b21a8"
+          value={peso}
+          selectTextOnFocus
+          onChangeText={(t) => setPeso(sanitizePesoInput(t))}
+        />
+        <TextInput
+          className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/45"
+          keyboardType="number-pad"
+          placeholder={placeholderReps ?? "Reps"}
+          placeholderTextColor="#6b21a8"
+          value={reps}
+          selectTextOnFocus
+          onChangeText={(t) => setReps(sanitizeRepsInput(t))}
+        />
+        {busy ? <ActivityIndicator size="small" color="#a78bfa" style={{ width: 28 }} /> : <View className="w-7" />}
+      </View>
+    </View>
+  );
+}
+
 export default function WorkoutSessionScreen({ navigation, route }: Props) {
   const { rutinaId, rutinaDiaId, nombreRutina, nombreDia } = route.params;
   const [loading, setLoading] = useState(true);
@@ -267,11 +362,16 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
   } | null>(null);
   const [serieDeleteId, setSerieDeleteId] = useState<number | null>(null);
   const [modalEliminarHistorial, setModalEliminarHistorial] = useState(false);
-  const [dropsetTarget, setDropsetTarget] = useState<null | { ejercicioId: number; orden: number }>(null);
-  const [dropsetReps, setDropsetReps] = useState("");
-  const [dropsetPeso, setDropsetPeso] = useState("");
   /** true = ejercicio plegado (solo cabecera + resumen). */
   const [collapsedEjercicios, setCollapsedEjercicios] = useState<Record<number, boolean>>({});
+
+  const onDropsetAddError = useCallback((message: string) => {
+    setDialogApp({
+      title: "Dropset",
+      message,
+      actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
+    });
+  }, []);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -371,40 +471,6 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
       setDialogApp({
         title: "Error",
         message: "No se pudo registrar la serie.",
-        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
-      });
-    }
-  };
-
-  const guardarDropset = async () => {
-    if (!entrenamientoId || !dropsetTarget || finalizado) return;
-    const r = parseInt(String(dropsetReps).trim(), 10);
-    const p = parsePesoNoNegativo(dropsetPeso);
-    if (!Number.isFinite(r) || r <= 0) {
-      setDialogApp({
-        title: "Reps",
-        message: "Indica un número de repeticiones válido (> 0).",
-        actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
-      });
-      return;
-    }
-    try {
-      await añadirDropsetTrasSerie(
-        entrenamientoId,
-        dropsetTarget.ejercicioId,
-        dropsetTarget.orden,
-        r,
-        p
-      );
-      setDropsetTarget(null);
-      setDropsetReps("");
-      setDropsetPeso("");
-      await cargar();
-    } catch (e) {
-      console.error(e);
-      setDialogApp({
-        title: "No se pudo añadir el dropset",
-        message: e instanceof Error ? e.message : "Intenta de nuevo.",
         actions: [{ label: "Entendido", onPress: () => setDialogApp(null) }],
       });
     }
@@ -547,8 +613,6 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
             const dropsOrden = ex.series
               .filter((s) => s.serieOrden === orden && (s.esDropset ?? 0) === 1)
               .sort((a, b) => a.id - b.id);
-            const abriendoDropset =
-              dropsetTarget?.ejercicioId === ex.ejercicioId && dropsetTarget.orden === orden;
 
             return (
               <View key={`bloque-${ex.ejercicioId}-${orden}`} className="mb-1">
@@ -590,69 +654,17 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
                         />
                       </View>
                     ))}
-                    {editable ? (
-                      abriendoDropset ? (
-                        <View className="mt-2 ml-1 p-3 bg-violet-950/35 border border-violet-700/50 rounded-xl">
-                          <Text className="text-violet-200 text-xs font-semibold mb-2">
-                            Nuevo dropset (kg y reps tras reducir peso o al fallo)
-                          </Text>
-                          <View className="flex-row gap-2">
-                            <TextInput
-                              className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/50"
-                              keyboardType="decimal-pad"
-                              placeholder="Kg"
-                              placeholderTextColor="#6b21a8"
-                              value={dropsetPeso}
-                              selectTextOnFocus
-                              onChangeText={(t) => setDropsetPeso(sanitizePesoInput(t))}
-                            />
-                            <TextInput
-                              className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/50"
-                              keyboardType="number-pad"
-                              placeholder="Reps"
-                              placeholderTextColor="#6b21a8"
-                              value={dropsetReps}
-                              selectTextOnFocus
-                              onChangeText={(t) => setDropsetReps(sanitizeRepsInput(t))}
-                            />
-                          </View>
-                          <View className="flex-row gap-2 mt-3">
-                            <TouchableOpacity
-                              className="flex-1 py-2.5 rounded-lg bg-violet-600 border border-violet-500"
-                              onPress={() => void guardarDropset()}
-                              activeOpacity={0.85}
-                            >
-                              <Text className="text-white text-center font-bold">Guardar dropset</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              className="flex-1 py-2.5 rounded-lg bg-slate-700 border border-slate-600"
-                              onPress={() => {
-                                setDropsetTarget(null);
-                                setDropsetReps("");
-                                setDropsetPeso("");
-                              }}
-                              activeOpacity={0.85}
-                            >
-                              <Text className="text-slate-200 text-center font-semibold">Cancelar</Text>
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      ) : (
-                        <TouchableOpacity
-                          className="mt-2 py-2 px-2 rounded-lg border border-violet-800/60 bg-violet-950/20"
-                          onPress={() => {
-                            setDropsetTarget({ ejercicioId: ex.ejercicioId, orden });
-                            setDropsetReps("");
-                            setDropsetPeso("");
-                          }}
-                          activeOpacity={0.85}
-                        >
-                          <Text className="text-violet-300 text-center text-sm font-semibold">
-                            + Añadir dropset a esta serie
-                          </Text>
-                        </TouchableOpacity>
-                      )
-                    ) : null}
+                    <DropsetPendingRow
+                      key={`drop-pend-${ex.ejercicioId}-${orden}`}
+                      entrenamientoId={entrenamientoId}
+                      ejercicioId={ex.ejercicioId}
+                      orden={orden}
+                      editable={editable}
+                      placeholderPeso={String(main.peso)}
+                      placeholderReps={String(main.repeticiones)}
+                      onAdded={() => void cargar()}
+                      onError={onDropsetAddError}
+                    />
                   </>
                 )}
               </View>
