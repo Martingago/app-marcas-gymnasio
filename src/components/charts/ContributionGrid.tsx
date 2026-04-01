@@ -8,6 +8,7 @@ import {
   ScrollView,
   useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { formatoFechaDMY, formatoFechaTituloExtendido } from "@/lib/fechaFormato";
 import type { SesionRutinaResumen } from "@/services/entrenamientos/entrenamientosService";
@@ -23,6 +24,9 @@ const COL_EMPTY = "#1e293b";
 const COL_L1 = "#064e3b";
 const COL_L2 = "#047857";
 const COL_L3 = "#22c55e";
+/** Contorno del día seleccionado en la cuadrícula */
+const OUTLINE_SELECTED = "#e2e8f0";
+const OUTLINE_WIDTH = 2;
 
 type Props = {
   fechasConEntreno: string[];
@@ -93,6 +97,7 @@ export default function ContributionGrid({
   sufijoLineaConteoSesiones,
 }: Props) {
   const { width: screenW } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [measuredW, setMeasuredW] = useState(0);
 
   const onRootLayout = useCallback((e: { nativeEvent: { layout: { width: number } } }) => {
@@ -147,39 +152,51 @@ export default function ContributionGrid({
     return weeks;
   }, [fechasConEntreno]);
 
-  const [diaSeleccionado, setDiaSeleccionado] = useState<string | null>(null);
+  /** Día con contorno (persiste al cerrar el panel). */
+  const [diaResaltado, setDiaResaltado] = useState<string | null>(null);
+  /** Día cuyo panel está abierto; null = modal cerrado. */
+  const [diaModalAbierto, setDiaModalAbierto] = useState<string | null>(null);
 
   const diasSemana = ["L", "M", "X", "J", "V", "S", "D"];
   const legendSize = Math.max(MIN_CELL_SIZE, Math.min(14, Math.round(cellSize * 0.65)));
 
-  const listaDiaSeleccionado = diaSeleccionado ? sesionesPorFecha.get(diaSeleccionado) ?? [] : [];
+  const listaDiaSeleccionado = diaModalAbierto ? sesionesPorFecha.get(diaModalAbierto) ?? [] : [];
 
   const gridBody = (
     <View className="flex-row" style={{ width: gridWidth, gap: GAP }}>
       {grid.map((weekCol, wi) => (
         <View key={wi} style={{ gap: GAP }}>
-          {weekCol.map((cell) => (
-            <Pressable
-              key={cell.day}
-              onPress={() => setDiaSeleccionado(cell.day)}
-              hitSlop={cellSize < 16 ? { top: 6, bottom: 6, left: 2, right: 2 } : undefined}
-              style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
-              accessibilityRole="button"
-              accessibilityLabel={`${cell.day}, ${cell.count} entreno(s)`}
-            >
-              <View
-                collapsable={false}
-                style={{
-                  width: cellSize,
-                  height: cellSize,
-                  minWidth: MIN_CELL_SIZE,
-                  minHeight: MIN_CELL_SIZE,
-                  borderRadius: 3,
-                  backgroundColor: colorHex(cell.count),
+          {weekCol.map((cell) => {
+            const selected = diaResaltado === cell.day;
+            return (
+              <Pressable
+                key={cell.day}
+                onPress={() => {
+                  setDiaResaltado(cell.day);
+                  setDiaModalAbierto(cell.day);
                 }}
-              />
-            </Pressable>
-          ))}
+                hitSlop={cellSize < 16 ? { top: 6, bottom: 6, left: 2, right: 2 } : undefined}
+                style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
+                accessibilityRole="button"
+                accessibilityLabel={`${cell.day}, ${cell.count} entreno(s)`}
+                accessibilityState={{ selected }}
+              >
+                <View
+                  collapsable={false}
+                  style={{
+                    width: cellSize,
+                    height: cellSize,
+                    minWidth: MIN_CELL_SIZE,
+                    minHeight: MIN_CELL_SIZE,
+                    borderRadius: 4,
+                    backgroundColor: colorHex(cell.count),
+                    borderWidth: selected ? OUTLINE_WIDTH : 0,
+                    borderColor: OUTLINE_SELECTED,
+                  }}
+                />
+              </Pressable>
+            );
+          })}
         </View>
       ))}
     </View>
@@ -227,22 +244,27 @@ export default function ContributionGrid({
       </View>
 
       <Modal
-        visible={diaSeleccionado != null}
+        visible={diaModalAbierto != null}
         transparent
         animationType="fade"
-        onRequestClose={() => setDiaSeleccionado(null)}
+        onRequestClose={() => setDiaModalAbierto(null)}
       >
-        <View className="flex-1 bg-black/70">
-          <Pressable className="flex-1" onPress={() => setDiaSeleccionado(null)} />
-          <View className="bg-slate-800 rounded-t-3xl border border-slate-600 border-b-0 max-h-[85%]">
+        <View className="flex-1 bg-black/70 justify-end">
+          <Pressable style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} onPress={() => setDiaModalAbierto(null)} />
+          <View className="bg-slate-800 rounded-t-3xl border border-slate-600 border-b-0" style={{ maxHeight: "85%" }}>
             <View className="w-12 h-1 bg-slate-600 rounded-full self-center mt-3 mb-2" />
-            <ScrollView className="px-5 pb-8 pt-2" keyboardShouldPersistTaps="handled">
+            <ScrollView
+              className="px-5 pt-2"
+              contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <Text className="text-slate-500 text-xs font-bold uppercase mb-1">Día</Text>
               <Text className="text-white text-xl font-bold mb-1">
-                {diaSeleccionado ? formatoFechaTituloExtendido(diaSeleccionado) : ""}
+                {diaModalAbierto ? formatoFechaTituloExtendido(diaModalAbierto) : ""}
               </Text>
               <Text className="text-slate-500 text-sm mb-5">
-                {diaSeleccionado ? formatoFechaDMY(diaSeleccionado) : ""}
+                {diaModalAbierto ? formatoFechaDMY(diaModalAbierto) : ""}
               </Text>
 
               {listaDiaSeleccionado.length === 0 ? (
@@ -267,7 +289,7 @@ export default function ContributionGrid({
                       key={s.entrenamientoId}
                       className="bg-slate-900/80 rounded-xl p-4 mb-3 border border-slate-700"
                       onPress={() => {
-                        setDiaSeleccionado(null);
+                        setDiaModalAbierto(null);
                         onAbrirSesion(s.entrenamientoId);
                       }}
                       activeOpacity={0.85}
@@ -282,7 +304,7 @@ export default function ContributionGrid({
 
               <TouchableOpacity
                 className="mt-4 py-3 rounded-xl bg-slate-700"
-                onPress={() => setDiaSeleccionado(null)}
+                onPress={() => setDiaModalAbierto(null)}
               >
                 <Text className="text-slate-200 text-center font-semibold">Cerrar</Text>
               </TouchableOpacity>

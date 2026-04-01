@@ -8,8 +8,11 @@ import {
   ActivityIndicator,
   Pressable,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useHeaderHeight } from "@react-navigation/elements";
 
 import AppDialog, { AppDialogAction } from "@/components/ui/AppDialog";
 import ExerciseSelectorModal from "@/components/modals/ExerciseSelectorModal";
@@ -78,6 +81,7 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
 
   const rutinaIdEditando = route.params?.rutinaId;
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
 
   const [isCargandoEdicion, setIsCargandoEdicion] = useState(!!rutinaIdEditando);
   const [activeDiaIndex, setActiveDiaIndex] = useState(0);
@@ -475,6 +479,12 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
 
   return (
     <View className="flex-1 bg-slate-900">
+      <KeyboardAvoidingView
+        className="flex-1"
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={headerHeight}
+      >
       <View className="px-4 pt-3 pb-2 border-b border-slate-800/80">
         <Text className="text-slate-500 mb-1.5 font-bold uppercase text-[10px] tracking-wide">
           {rutinaIdEditando ? "Editar rutina" : "Nueva rutina"}
@@ -541,7 +551,8 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
       <ScrollView
         className="flex-1 px-4 pt-4"
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 280 }}
       >
         {!diaActivo ? (
           <View className="py-16 px-4 items-center">
@@ -794,6 +805,7 @@ export default function CreateRoutineScreen({ navigation, route }: Props) {
           )}
         </TouchableOpacity>
       </View>
+      </KeyboardAvoidingView>
 
       <Modal
         visible={modalSalirSinGuardar}

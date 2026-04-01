@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback } from "react";
 import { View, Text, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -6,7 +6,10 @@ import { useFocusEffect } from '@react-navigation/native';
 
 import { RootStackParamList } from '@/navigation/types';
 import { getRutinasConDetalle, eliminarRutina } from '@/services/rutina/rutinasService';
-import { getRutinaIdsConEntrenoEnCurso } from '@/services/entrenamientos/entrenamientosService';
+import {
+  getEntrenoActivoRutina,
+  getRutinaIdsConEntrenoEnCurso,
+} from '@/services/entrenamientos/entrenamientosService';
 import RoutineItem from '@/components/rutinas/RoutineItem';
 
 // IMPORTA TUS MODALES (Asegúrate de que la ruta sea correcta)
@@ -87,6 +90,32 @@ export default function RoutinesScreen({ navigation }: Props) {
     }
   };
 
+  const handleStartWorkout = useCallback(
+    async (r: { id: number; nombre: string }) => {
+      if (rutinasConEntrenoIds.has(r.id)) {
+        try {
+          const activo = await getEntrenoActivoRutina(r.id);
+          if (activo?.rutinaDiaId != null) {
+            navigation.navigate("WorkoutSession", {
+              rutinaId: r.id,
+              rutinaDiaId: activo.rutinaDiaId,
+              nombreRutina: r.nombre,
+              nombreDia: activo.nombreDia ?? "Día",
+            });
+            return;
+          }
+        } catch (e) {
+          console.error("Error al cargar entreno activo:", e);
+        }
+      }
+      navigation.navigate("RoutineDayPicker", {
+        rutinaId: r.id,
+        nombreRutina: r.nombre,
+      });
+    },
+    [navigation, rutinasConEntrenoIds]
+  );
+
   return (
     <SafeAreaView edges={['bottom', 'left', 'right']} className="flex-1 bg-slate-900">
       <View className="flex-1 p-4">
@@ -115,12 +144,7 @@ export default function RoutinesScreen({ navigation }: Props) {
                 rutina={item}
                 entrenoEnCurso={rutinasConEntrenoIds.has(item.id)}
                 onOptionsPress={handleOptionsPress}
-                onStartWorkout={(r) =>
-                  navigation.navigate("RoutineDayPicker", {
-                    rutinaId: r.id,
-                    nombreRutina: r.nombre,
-                  })
-                }
+                onStartWorkout={(r) => void handleStartWorkout(r)}
                 onRoutineHistory={(r) =>
                   navigation.navigate("RoutineHistory", {
                     rutinaId: r.id,

@@ -8,9 +8,12 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -346,6 +349,7 @@ function DropsetPendingRow({
 
 export default function WorkoutSessionScreen({ navigation, route }: Props) {
   const { rutinaId, rutinaDiaId, nombreRutina, nombreDia } = route.params;
+  const headerHeight = useHeaderHeight();
   const [loading, setLoading] = useState(true);
   const [entrenamientoId, setEntrenamientoId] = useState<number | null>(null);
   const [finalizado, setFinalizado] = useState(false);
@@ -574,7 +578,17 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView edges={["bottom", "left", "right"]} className="flex-1 bg-slate-900">
-      <ScrollView className="flex-1 px-4 pt-2" contentContainerStyle={{ paddingBottom: 160 }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={headerHeight}
+      >
+      <ScrollView
+        className="flex-1 px-4 pt-2"
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={{ paddingBottom: 32 }}
+      >
         <View className="bg-slate-800/90 border border-slate-600 rounded-2xl p-4 mb-5">
           <Text className="text-slate-400 text-xs font-bold uppercase mb-1">{nombreRutina}</Text>
           <Text className="text-white text-2xl font-bold mb-1">{nombreDia}</Text>
@@ -730,7 +744,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
         })}
       </ScrollView>
 
-      <View className="p-4 border-t border-slate-800 bg-slate-900 gap-3">
+      <View className="p-4 border-t border-slate-800 bg-slate-900 gap-3 shrink-0">
         {editable ? (
           <>
             <TouchableOpacity
@@ -758,6 +772,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
           </TouchableOpacity>
         )}
       </View>
+      </KeyboardAvoidingView>
 
       <Modal visible={modalFinalizar} transparent animationType="fade" onRequestClose={() => setModalFinalizar(false)}>
         <View className="flex-1 bg-black/70 justify-center px-6">

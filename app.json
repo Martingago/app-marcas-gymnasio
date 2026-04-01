@@ -15,6 +15,7 @@
       "supportsTablet": true
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.nextpr.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
