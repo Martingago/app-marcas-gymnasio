@@ -24,7 +24,18 @@ export default function RoutineItem({
   onRoutineHistory,
 }: Props) {
   return (
-    <View className="bg-slate-800 rounded-2xl mb-4 border border-slate-700 overflow-hidden">
+    <View className="relative bg-slate-800 rounded-2xl mb-4 border border-slate-700 overflow-hidden">
+      {entrenoEnCurso ? (
+        <View
+          className="absolute top-0 right-0 z-10 px-2 py-0.5 rounded-md bg-blue-950/95 border border-blue-500/50"
+          pointerEvents="none"
+        >
+          <Text className="text-blue-300 text-[9px] font-bold uppercase leading-tight" numberOfLines={1}>
+            entreno en curso
+          </Text>
+        </View>
+      ) : null}
+
       <View className="p-4 flex-row items-start justify-between gap-2">
         {onDuplicatePress ? (
           <TouchableOpacity
@@ -38,18 +49,15 @@ export default function RoutineItem({
           </TouchableOpacity>
         ) : null}
 
-        <View className="flex-1 min-w-0 pt-0.5">
+        <View
+          className={`flex-1 min-w-0 pt-0.5 ${entrenoEnCurso ? "pr-24" : "pr-1"}`}
+        >
           <Text className="text-white text-lg font-bold" numberOfLines={2}>
             {rutina.nombre}
           </Text>
           <Text className="text-slate-500 text-sm mt-1">
             {rutina.totalDias === 1 ? "1 día de entrenamiento" : `${rutina.totalDias} días de entrenamiento`}
           </Text>
-          {entrenoEnCurso ? (
-            <View className="self-start mt-2 px-2 py-1 rounded-md bg-blue-950/80 border border-blue-500/45">
-              <Text className="text-blue-300 text-[10px] font-semibold">entreno en curso</Text>
-            </View>
-          ) : null}
         </View>
 
         <TouchableOpacity
