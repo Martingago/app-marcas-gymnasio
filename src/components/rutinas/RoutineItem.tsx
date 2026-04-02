@@ -24,13 +24,13 @@ export default function RoutineItem({
   onRoutineHistory,
 }: Props) {
   return (
-    <View className="relative bg-slate-800 rounded-2xl mb-4 border border-slate-700 overflow-hidden">
+    <View className="relative bg-slate-800 rounded-xl mb-4 border border-slate-700 overflow-hidden">
       {entrenoEnCurso ? (
         <View
-          className="absolute top-0 right-0 z-10 px-2 py-0.5 rounded-md bg-blue-950/95 border border-blue-500/50"
+          className="absolute top-1 right-1 z-10 px-2 py-0.5 rounded-xl bg-emerald-950/95 border border-emerald-500/50"
           pointerEvents="none"
         >
-          <Text className="text-blue-300 text-[9px] font-bold uppercase leading-tight" numberOfLines={1}>
+          <Text className="text-emerald-300 text-[9px] font-bold uppercase leading-tight" numberOfLines={1}>
             entreno en curso
           </Text>
         </View>
@@ -61,7 +61,7 @@ export default function RoutineItem({
         </View>
 
         <TouchableOpacity
-          className="mt-0.5 p-2"
+          className="mt-3 p-2"
           onPress={() => onOptionsPress(rutina)}
           accessibilityLabel="Opciones de rutina"
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}

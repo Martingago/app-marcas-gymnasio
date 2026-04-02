@@ -171,7 +171,7 @@ function SerieRowEditor({
         {editable ? (
           <>
             <TextInput
-              className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px]"
+              className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[34px]"
               keyboardType="decimal-pad"
               placeholder={objetivoMeta?.peso ?? "Kg"}
               placeholderTextColor="#78716c"
@@ -181,7 +181,7 @@ function SerieRowEditor({
               onBlur={() => void persist()}
             />
             <TextInput
-              className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px]"
+              className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[34px]"
               keyboardType="number-pad"
               placeholder={objetivoMeta?.reps ?? "Reps"}
               placeholderTextColor="#78716c"
@@ -191,26 +191,22 @@ function SerieRowEditor({
               onBlur={() => void persist()}
             />
             <TouchableOpacity onPress={confirmarBorrar} className="px-2 py-1" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text className="text-red-400 text-xl leading-none">×</Text>
+            <Ionicons name="close" size={16} color="#f87171" />
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <View className="flex-1 bg-slate-800/50 p-2 rounded-lg items-center justify-center min-h-[44px] border border-slate-700">
+            <View className="flex-1 bg-slate-800/50 p-2 rounded-lg items-center justify-center min-h-[34px] border border-slate-700">
               <Text className="text-white font-semibold">{peso} kg</Text>
             </View>
-            <View className="flex-1 bg-slate-800/50 p-2 rounded-lg items-center justify-center min-h-[44px] border border-slate-700">
+            <View className="flex-1 bg-slate-800/50 p-2 rounded-lg items-center justify-center min-h-[34px] border border-slate-700">
               <Text className="text-white font-semibold">{reps} reps</Text>
             </View>
             <View className="w-8" />
           </>
         )}
       </View>
-      {!esDropset && objetivoMeta ? (
-        <Text className="text-slate-500 text-xs mt-1 ml-1">
-          Objetivo: {objetivoMeta.peso} kg · {objetivoMeta.reps} reps · Registrado: {effPeso} kg · {effRep} reps
-        </Text>
-      ) : esDropset ? (
+      {esDropset ? (
         <Text className="text-violet-400/80 text-xs mt-1 ml-1">Dropset: menos peso o más reps tras llegar al fallo.</Text>
       ) : null}
       {comp ? (
@@ -232,7 +228,7 @@ function SlotSinRegistrar({
   onRegistrar: () => void;
 }) {
   return (
-    <View className="mb-4 bg-slate-900/50 border border-dashed border-slate-600 rounded-xl p-3">
+    <View className="mt-2 mb-2 bg-slate-900/50 border border-dashed border-slate-600 rounded-xl p-3">
       <Text className="text-slate-500 text-xs mb-1">Serie {orden}</Text>
       <Text className="text-amber-400/95 font-bold text-base mb-1">
         Objetivo de la rutina: {plant.peso} kg · {plant.reps} reps
@@ -323,7 +319,7 @@ function DropsetPendingRow({
   return (
     <View className="mb-2">
       <View className="flex-row items-center gap-2 bg-slate-900/60 p-2 rounded-xl border border-dashed border-violet-600/45">
-        <View className="w-9 items-center justify-center min-h-[44px]">
+        <View className="w-9 items-center justify-center min-h-[34px]">
           {busy ? (
             <ActivityIndicator size="small" color="#a78bfa" />
           ) : (
@@ -331,7 +327,7 @@ function DropsetPendingRow({
           )}
         </View>
         <TextInput
-          className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/45"
+          className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[34px] border border-violet-900/45"
           keyboardType="decimal-pad"
           placeholder={placeholderPeso ?? "Kg"}
           placeholderTextColor="#6b21a8"
@@ -341,7 +337,7 @@ function DropsetPendingRow({
           onChangeText={(t) => setPeso(sanitizePesoInput(t))}
         />
         <TextInput
-          className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[44px] border border-violet-900/45"
+          className="flex-1 bg-slate-800 text-white p-2 rounded-lg text-center min-h-[34px] border border-violet-900/45"
           keyboardType="number-pad"
           placeholder={placeholderReps ?? "Reps"}
           placeholderTextColor="#6b21a8"
@@ -361,7 +357,7 @@ function DropsetPendingRow({
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           disabled={busy}
         >
-          <Ionicons name="close" size={22} color="#f87171" />
+          <Ionicons name="close" size={16} color="#f87171" />
         </TouchableOpacity>
       </View>
   
@@ -399,7 +395,7 @@ function DropsetAddSection({
   if (!editable || !entrenamientoId) return null;
 
   return (
-    <View className="mt-1 ml-1">
+    <View className="mb-2 ml-1">
       {expanded ? (
         <DropsetPendingRow
           entrenamientoId={entrenamientoId}
@@ -414,11 +410,11 @@ function DropsetAddSection({
         />
       ) : (
         <TouchableOpacity
-          className="py-2.5 px-3 rounded-xl border border-dashed border-violet-800/55 bg-violet-950/20 active:opacity-90"
+          className="py-2 px-3 rounded-xl border border-dashed border-violet-800/55 bg-violet-950/20 active:opacity-90"
           onPress={() => setExpanded(true)}
           activeOpacity={0.85}
         >
-          <Text className="text-violet-300 text-center font-semibold">+ Añadir dropset</Text>
+          <Text className="text-violet-300 text-center text-sm font-semibold">+ Añadir dropset</Text>
         </TouchableOpacity>
       )}
     </View>
