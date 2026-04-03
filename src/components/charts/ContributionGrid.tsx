@@ -21,9 +21,12 @@ const LABEL_MARGIN = 4;
 const MIN_CELL_SIZE = 12;
 
 const COL_EMPTY = "#1e293b";
-const COL_L1 = "#064e3b";
-const COL_L2 = "#047857";
-const COL_L3 = "#22c55e";
+/** 1 entreno = verde sólido (Tailwind green-600) */
+const COL_1_ENTRENO = "#16a34a";
+/** 2 entrenos el mismo día */
+const COL_2_ENTRENOS = "#84cc16";
+/** 3+ entrenos — lime neón (Tailwind lime-400) */
+const COL_3_MAS_ENTRENOS = "#a3e635";
 /** Contorno del día seleccionado en la cuadrícula */
 const OUTLINE_SELECTED = "#e2e8f0";
 const OUTLINE_WIDTH = 2;
@@ -66,9 +69,9 @@ function toIso(d: Date): string {
 
 function colorHex(count: number): string {
   if (count <= 0) return COL_EMPTY;
-  if (count === 1) return COL_L1;
-  if (count === 2) return COL_L2;
-  return COL_L3;
+  if (count === 1) return COL_1_ENTRENO;
+  if (count === 2) return COL_2_ENTRENOS;
+  return COL_3_MAS_ENTRENOS;
 }
 
 /** Ancho útil para la cuadrícula (solo columnas de días), 1:1, ocupando todo `gridAvail` si cabe */
@@ -233,14 +236,14 @@ export default function ContributionGrid({
       </View>
 
       <View className="flex-row items-center gap-3 mt-4 flex-wrap">
-        <Text className="text-slate-600 text-xs">Menos</Text>
+        <Text className="text-slate-600 text-xs">Sin entreno</Text>
         <View className="flex-row" style={{ gap: 4 }}>
           <View className="rounded-sm" style={{ width: legendSize, height: legendSize, backgroundColor: COL_EMPTY }} />
-          <View className="rounded-sm" style={{ width: legendSize, height: legendSize, backgroundColor: COL_L1 }} />
-          <View className="rounded-sm" style={{ width: legendSize, height: legendSize, backgroundColor: COL_L2 }} />
-          <View className="rounded-sm" style={{ width: legendSize, height: legendSize, backgroundColor: COL_L3 }} />
+          <View className="rounded-sm" style={{ width: legendSize, height: legendSize, backgroundColor: COL_1_ENTRENO }} />
+          <View className="rounded-sm" style={{ width: legendSize, height: legendSize, backgroundColor: COL_2_ENTRENOS }} />
+          <View className="rounded-sm" style={{ width: legendSize, height: legendSize, backgroundColor: COL_3_MAS_ENTRENOS }} />
         </View>
-        <Text className="text-slate-600 text-xs">Más entrenos ese día</Text>
+        <Text className="text-slate-600 text-xs">1 · 2 · 3+ entrenos / día</Text>
       </View>
 
       <Modal

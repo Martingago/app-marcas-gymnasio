@@ -1,8 +1,9 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
+import * as Clipboard from "expo-clipboard";
 
 import { RootStackParamList } from "@/navigation/types";
 import { formatoFechaDMY, formatoFechaTituloExtendido } from "@/lib/fechaFormato";
@@ -33,6 +34,27 @@ function agruparSeriesPorEjercicio(items: DetalleSesionSerie[]) {
     nombre: nombres.get(ejercicioId) ?? "—",
     series: porId.get(ejercicioId)!,
   }));
+}
+
+function construirTextoCompartir(
+  cabecera: { fecha: string; diaNombre: string | null; rutinaNombre: string | null },
+  bloques: { nombre: string; series: DetalleSesionSerie[] }[]
+): string {
+  const fechaStr = formatoFechaDMY(cabecera.fecha);
+  const rutina = cabecera.rutinaNombre ?? "—";
+  const dia = cabecera.diaNombre ?? "—";
+  const header = `Detalles de entreno - ${fechaStr}. ${rutina}, ${dia}.`;
+  if (bloques.length === 0) return header;
+  const bloquesTxt = bloques.map((b) => {
+    const lineasSeries = b.series.map((s) => {
+      const serieEtiqueta = s.esDropset
+        ? `Serie ${s.serieOrden} · dropset`
+        : `Serie ${s.serieOrden}`;
+      return `${serieEtiqueta}, ${s.peso} kg, ${s.reps} reps`;
+    });
+    return `${b.nombre}\n${lineasSeries.join("\n")}`;
+  });
+  return `${header}\n\n${bloquesTxt.join("\n\n")}`;
 }
 
 export default function SessionDetailScreen({ route, navigation }: Props) {
@@ -74,6 +96,18 @@ export default function SessionDetailScreen({ route, navigation }: Props) {
     }, [cargar])
   );
 
+  const copiarDetalleEntreno = useCallback(async () => {
+    if (!cabecera) return;
+    const texto = construirTextoCompartir(cabecera, bloquesEjercicio);
+    try {
+      await Clipboard.setStringAsync(texto);
+      Alert.alert("Copiado", "El detalle del entreno está en el portapapeles.");
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Error", "No se pudo copiar al portapapeles.");
+    }
+  }, [cabecera, bloquesEjercicio]);
+
   if (loading) {
     return (
       <View className="flex-1 bg-slate-900 justify-center items-center">
@@ -91,7 +125,14 @@ export default function SessionDetailScreen({ route, navigation }: Props) {
             <Text className="text-white text-2xl font-bold mb-1">{formatoFechaTituloExtendido(cabecera.fecha)}</Text>
             <Text className="text-slate-500 text-sm mb-1">{formatoFechaDMY(cabecera.fecha)}</Text>
             <Text className="text-emerald-400 font-semibold">{cabecera.rutinaNombre ?? "—"}</Text>
-            <Text className="text-slate-400 mb-6">{cabecera.diaNombre ?? ""}</Text>
+            <Text className="text-slate-400 mb-4">{cabecera.diaNombre ?? ""}</Text>
+            <TouchableOpacity
+              className="py-3 rounded-xl bg-slate-800 border border-slate-600 mb-6"
+              onPress={copiarDetalleEntreno}
+              activeOpacity={0.85}
+            >
+              <Text className="text-center text-emerald-400 font-semibold">Compartir detalle entreno</Text>
+            </TouchableOpacity>
           </>
         ) : null}
 

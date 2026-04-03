@@ -49,7 +49,10 @@ export const getEjercicios = async (
 
   const conds: ReturnType<typeof and>[] = [];
   if (searchQuery && searchQuery.trim() !== "") {
-    conds.push(like(ejercicios.nombre, `%${searchQuery.trim()}%`));
+    const palabras = searchQuery.trim().split(/\s+/).filter((p) => p.length > 0);
+    for (const palabra of palabras) {
+      conds.push(like(ejercicios.nombre, `%${palabra}%`));
+    }
   }
 
   let ejercicioIdsPorCategoria: number[] | null = null;
