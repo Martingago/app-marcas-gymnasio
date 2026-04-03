@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
@@ -127,11 +128,12 @@ export default function SessionDetailScreen({ route, navigation }: Props) {
             <Text className="text-emerald-400 font-semibold">{cabecera.rutinaNombre ?? "—"}</Text>
             <Text className="text-slate-400 mb-4">{cabecera.diaNombre ?? ""}</Text>
             <TouchableOpacity
-              className="py-3 rounded-xl bg-slate-800 border border-slate-600 mb-6"
+              className="py-3 rounded-xl bg-slate-800 border border-slate-600 mb-6 flex-row items-center justify-center gap-2"
               onPress={copiarDetalleEntreno}
               activeOpacity={0.85}
             >
-              <Text className="text-center text-emerald-400 font-semibold">Compartir detalle entreno</Text>
+              <Ionicons name="share-outline" size={22} color="#34d399" importantForAccessibility="no" />
+              <Text className="text-emerald-400 font-semibold">Compartir detalle entreno</Text>
             </TouchableOpacity>
           </>
         ) : null}

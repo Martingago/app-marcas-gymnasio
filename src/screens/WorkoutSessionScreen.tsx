@@ -19,7 +19,7 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { formatoFechaDMY, formatoFechaTituloExtendido } from "@/lib/fechaFormato";
 import AppDialog, { AppDialogAction } from "@/components/ui/AppDialog";
-import { resetStackToRoutineDayPicker } from "@/navigation/resetToRoutineDayPicker";
+import { resetStackAfterFinalizarEntreno, resetStackToRoutineDayPicker } from "@/navigation/resetToRoutineDayPicker";
 import { RootStackParamList } from "@/navigation/types";
 import { getEjerciciosConSeriesParaEntreno } from "@/services/rutina/rutinasService";
 import {
@@ -578,7 +578,7 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
     try {
       await finalizarEntrenamientoDia(entrenamientoId);
       setModalFinalizar(false);
-      resetStackToRoutineDayPicker(navigation, rutinaId, nombreRutina);
+      resetStackAfterFinalizarEntreno(navigation, rutinaId, nombreRutina, entrenamientoId);
     } catch (e) {
       console.error(e);
       setDialogApp({
@@ -854,7 +854,8 @@ export default function WorkoutSessionScreen({ navigation, route }: Props) {
             <Text className="text-white text-xl font-bold mb-2">¿Finalizar este día?</Text>
             <Text className="text-slate-400 text-sm leading-5 mb-6">
               Al confirmar, este entreno quedará cerrado y no podrás editar series. No hace falta haber completado todos
-              los ejercicios. Volverás a la lista de días con el siguiente día recomendado actualizado.
+              los ejercicios. Verás el resumen de lo registrado (podrás compartirlo) y al volver atrás irás al historial
+              de esta rutina.
             </Text>
             <View className="flex-row gap-3">
               <TouchableOpacity className="flex-1 py-3 rounded-xl bg-slate-700" onPress={() => setModalFinalizar(false)}>
