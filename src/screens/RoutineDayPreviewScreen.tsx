@@ -1,5 +1,13 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Pressable } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Pressable,
+  Modal,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
@@ -20,6 +28,7 @@ export default function RoutineDayPreviewScreen({ navigation, route }: Props) {
   > | null>(null);
   /** Solo `true` = acordeón abierto; por defecto cerrado. */
   const [expandedEjercicios, setExpandedEjercicios] = useState<Record<number, boolean>>({});
+  const [modalIniciarSesion, setModalIniciarSesion] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -138,14 +147,18 @@ export default function RoutineDayPreviewScreen({ navigation, route }: Props) {
               entrenoActivo.rutinaDiaId !== rutinaDiaId
             )
           }
-          onPress={() =>
-            navigation.navigate("WorkoutSession", {
-              rutinaId,
-              rutinaDiaId,
-              nombreRutina,
-              nombreDia,
-            })
-          }
+          onPress={() => {
+            if (entrenoActivo?.rutinaDiaId === rutinaDiaId) {
+              navigation.navigate("WorkoutSession", {
+                rutinaId,
+                rutinaDiaId,
+                nombreRutina,
+                nombreDia,
+              });
+            } else {
+              setModalIniciarSesion(true);
+            }
+          }}
           activeOpacity={0.9}
         >
           <Text className="text-white font-bold text-lg">
@@ -160,6 +173,47 @@ export default function RoutineDayPreviewScreen({ navigation, route }: Props) {
             : "Solo entonces se abre la sesión donde podrás anotar lo que hagas (guardado automático)."}
         </Text>
       </View>
+
+      <Modal
+        visible={modalIniciarSesion}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalIniciarSesion(false)}
+      >
+        <View className="flex-1 bg-black/70 justify-center px-6">
+          <View className="bg-slate-800 rounded-2xl p-5 border border-slate-600">
+            <Text className="text-white text-xl font-bold mb-2">Iniciar sesión de entreno</Text>
+            <Text className="text-slate-400 text-sm leading-5 mb-6">
+              Se iniciará una nueva sesión de entreno para el día «{nombreDia}». Podrás registrar series y volver aquí
+              desde el listado de rutinas si cierras la app.
+            </Text>
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                className="flex-1 py-3 rounded-xl bg-slate-700"
+                onPress={() => setModalIniciarSesion(false)}
+                activeOpacity={0.85}
+              >
+                <Text className="text-slate-200 text-center font-semibold">Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 py-3 rounded-xl bg-blue-600"
+                onPress={() => {
+                  setModalIniciarSesion(false);
+                  navigation.navigate("WorkoutSession", {
+                    rutinaId,
+                    rutinaDiaId,
+                    nombreRutina,
+                    nombreDia,
+                  });
+                }}
+                activeOpacity={0.85}
+              >
+                <Text className="text-white text-center font-bold">Continuar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

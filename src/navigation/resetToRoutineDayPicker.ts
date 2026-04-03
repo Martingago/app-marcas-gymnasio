@@ -20,10 +20,15 @@ export function resetStackToRoutineDayPicker(
   const idxPicker = state.routes.findIndex((r) => r.name === "RoutineDayPicker");
 
   if (idxPicker < 0) {
+    // Ej.: entreno abierto desde «Mis rutinas» sin pasar por el picker: sin esto la pila queda
+    // solo con RoutineDayPicker y el atrás no lleva a ningún sitio.
     navigation.dispatch(
       CommonActions.reset({
-        index: 0,
-        routes: [{ name: "RoutineDayPicker", params: { rutinaId, nombreRutina } }],
+        index: 1,
+        routes: [
+          { name: "Routines" as const },
+          { name: "RoutineDayPicker" as const, params: { rutinaId, nombreRutina } },
+        ],
       })
     );
     return;
