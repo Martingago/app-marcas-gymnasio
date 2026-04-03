@@ -2,6 +2,7 @@ import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   Modal,
   Pressable,
@@ -165,7 +166,14 @@ export default function HomeScreen({ navigation }: Props) {
       </View>
 
       <View className="flex-1 px-6 justify-center">
-        <Text className="text-white text-6xl font-bold mb-2 text-center">NextPR</Text>
+        <Image
+          source={require("../../assets/logo_letras_blancas.png")}
+          accessibilityLabel="NextPR"
+          accessibilityRole="image"
+          resizeMode="contain"
+          className="w-full max-w-[320px] self-center mb-6"
+          style={{ height: 120 }}
+        />
         <Text className="text-slate-500 text-center text-sm mb-10">Rutinas, entrenos y seguimiento</Text>
 
         <View className="gap-5">
@@ -212,8 +220,8 @@ export default function HomeScreen({ navigation }: Props) {
         <View className="flex-1">
           <Pressable className="flex-1 bg-black/50" onPress={() => setMenuOpen(false)} />
           <View
-            className="absolute right-4 w-56 rounded-2xl border border-slate-600 bg-slate-800 overflow-hidden shadow-xl"
-            style={{ top: menuTop }}
+            className="absolute top-16 right-4 w-56 rounded-2xl border border-slate-600 bg-slate-800 overflow-hidden shadow-xl"
+            
           >
             <Text className="text-slate-500 text-[10px] font-bold uppercase px-4 pt-3 pb-1">Copia de seguridad</Text>
             <TouchableOpacity
